@@ -1,5 +1,15 @@
 import { creatures as creatureData } from '../data/creatures.js';
 
+// Syllable pools by archetype
+const SYLLABLES = {
+  Flying: ['zip', 'zax', 'buzz', 'flit', 'wing', 'dart', 'swift', 'aero', 'sky', 'zephyr'],
+  Ground: ['thud', 'burr', 'stone', 'drill', 'dig', 'claw', 'hard', 'rock', 'tar', 'thrum'],
+  Water: ['rip', 'flow', 'tide', 'wave', 'splash', 'aqua', 'drift', 'glide', 'surge', 'eddyx'],
+};
+
+// Track generated names to avoid duplicates
+const usedNames = new Set();
+
 export default class Creature {
   /**
    * @param {object} creatureData  - Raw data object from creatures.js
@@ -13,13 +23,11 @@ export default class Creature {
     this.ability   = data.ability;
     this.level     = level;
     this.parentIds = parentIds;
-
     // Base stats stored for scaling
     this._baseHp  = data.baseHp;
     this._baseAtk = data.baseAtk;
     this._baseDef = data.baseDef;
     this._baseSpd = data.baseSpd;
-
     this.currentHP = this.getStats().hp;
   }
 
@@ -51,10 +59,34 @@ export default class Creature {
   }
 
   /**
+   * Generate a random abstract name from parent archetypes.
+   * Blends syllables from both parents' archetype pools.
+   * 3-9 characters, tracks used names to avoid duplicates.
+   */
+  static generateName(archetype1, archetype2) {
+    const pool1 = SYLLABLES[archetype1] || SYLLABLES.Flying;
+    const pool2 = SYLLABLES[archetype2] || SYLLABLES.Flying;
+
+    let name;
+    let attempts = 0;
+    do {
+      const syl1 = pool1[Math.floor(Math.random() * pool1.length)];
+      const syl2 = pool2[Math.floor(Math.random() * pool2.length)];
+      const combine = Math.random() < 0.5 ? syl1 + syl2 : syl2 + syl1;
+      name = combine.slice(0, 9); // Cap at 9 chars
+      attempts++;
+    } while (usedNames.has(name) && attempts < 50); // Try 50 times, then accept repeat
+
+    usedNames.add(name);
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
+
+  /**
    * Breed two Creature instances to produce an offspring.
    * - Stats: average of parents ±10% random variance (floored, min 1)
    * - Archetype: randomly chosen from one of the two parents
-   * - A random creature template from the chosen archetype supplies id/name/ability
+   * - Name: random abstract name hinting at parent archetypes
+   * - Ability: from random template of chosen archetype
    * - parentIds set to [p1.id, p2.id]
    *
    * @param {Creature} p1
@@ -64,7 +96,6 @@ export default class Creature {
   static breed(p1, p2) {
     const p1s = p1.getStats();
     const p2s = p2.getStats();
-
     const avg = (a, b) => (a + b) / 2;
     const vary = v => Math.max(1, Math.floor(v * (0.9 + Math.random() * 0.2)));
 
@@ -75,10 +106,13 @@ export default class Creature {
     const pool = creatureData.filter(c => c.archetype === archetype);
     const template = pool[Math.floor(Math.random() * pool.length)];
 
+    // Generate offspring name from parent archetypes
+    const offspringName = Creature.generateName(p1.archetype, p2.archetype);
+
     // Build a synthetic data object with averaged stats
     const offspringData = {
       id:        template.id,
-      name:      template.name,
+      name:      offspringName,
       archetype: template.archetype,
       ability:   template.ability,
       baseHp:  vary(avg(p1s.hp,  p2s.hp)),

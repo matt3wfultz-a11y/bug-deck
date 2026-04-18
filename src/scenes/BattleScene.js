@@ -1,23 +1,27 @@
-import Creature     from '../entities/Creature.js';
-import BattleSystem  from '../systems/BattleSystem.js';
-import GameState     from '../systems/GameState.js';
+import Creature        from '../entities/Creature.js';
+import BattleSystem, { ADVANTAGE } from '../systems/BattleSystem.js';
+import BattleQueue      from '../systems/BattleQueue.js';
+import GameState        from '../systems/GameState.js';
 import { creatures as creatureData } from '../data/creatures.js';
 
 const BAR_W          = 200;
 const BAR_H          = 12;
 const ALL_ARCHETYPES = ['Flying', 'Ground', 'Water'];
 
-// ── Hand card constants ────────────────────────────────────────────────────
-const HC_W      = 147;   // hand card width
-const HC_H      = 158;   // hand card height
+const HC_W      = 147;
+const HC_H      = 155;
 const HC_GAP    = 8;
-// 5 cards: 5*147 + 4*8 = 767 → startX = (800-767)/2 = 16
 const HC_X0     = 16;
-const HC_Y      = 352;   // top of hand cards
-const HC_BAR_W  = 131;   // HP bar width inside card (HC_W - 16)
+const HC_Y      = 372;
+const HC_BAR_W  = 131;
 const HC_BAR_H  = 5;
 
-const ARCH_COLOR = { Flying: '#ffdd44', Ground: '#cc9944', Water: '#66aaff' };
+const ARCH_COLOR   = { Flying: '#ffdd44', Ground: '#cc9944', Water: '#66aaff' };
+const DEFEND_RATIO = 0.5; // incoming damage multiplier when defending
+
+const DOT_SIZE = 9;
+const DOT_GAP  = 4;
+const DOT_Y    = 152;
 
 export default class BattleScene extends Phaser.Scene {
   constructor() {
@@ -30,7 +34,6 @@ export default class BattleScene extends Phaser.Scene {
     const archetype = GameState.selectedArchetype || 'Flying';
     const enemyArch = ALL_ARCHETYPES[Math.floor(Math.random() * ALL_ARCHETYPES.length)];
 
-    // ── Build player deck (from DeckBuilderScene selection, or fallback) ──────
     const buildFallback = arch => {
       const pool = creatureData.filter(c => c.archetype === arch);
       return Array.from({ length: 5 }, () =>
@@ -40,7 +43,7 @@ export default class BattleScene extends Phaser.Scene {
 
     const deckData   = GameState.selectedDeck;
     const playerDeck = deckData.length > 0
-      ? deckData.map(d => new Creature(d, 1))
+      ? deckData.map(d => { const c = new Creature(d, 1); c._farmUid = d.uid || null; return c; })
       : buildFallback(archetype);
 
     const enemyPool = creatureData.filter(c => c.archetype === enemyArch);
@@ -50,15 +53,18 @@ export default class BattleScene extends Phaser.Scene {
 
     const playerItems = [...(GameState.selectedItems || [])];
 
-    this.battleSystem      = new BattleSystem(playerDeck, enemyDeck, playerItems);
-    this._actionInProgress = false;
-    this._deployPhase      = false;
+    this.battleSystem    = new BattleSystem(playerDeck, enemyDeck, playerItems);
+    this._deckRoster     = [...playerDeck];
+    this._activeCreature = playerDeck[0];
 
-    // Track the full roster (fixed order, used for hand display + deploy)
-    this._deckRoster       = [...playerDeck];
-    this._activeCreature   = playerDeck[0];   // reference to currently deployed creature
+    this._deployPhase     = false;
+    this._swapSelectPhase = false;
+    this._resolving       = false;
 
-    // ── Static chrome ────────────────────────────────────────────────────────
+    this._playerQueue = new BattleQueue(this._activeCreature);
+    this._enemyQueue  = new BattleQueue(this.battleSystem.enemyHand[0]);
+
+    // ── Static chrome ─────────────────────────────────────────────────────────
     this.add.rectangle(width / 2, 0, width, 58, 0x0d0d1a).setOrigin(0.5, 0);
     this.add.rectangle(width / 2, 58, width, 2, 0x2a2a50).setOrigin(0.5, 0);
     this.add.rectangle(width / 2, 258, width, 2, 0x2a2a50).setOrigin(0.5, 0);
@@ -66,7 +72,7 @@ export default class BattleScene extends Phaser.Scene {
       fontSize: '20px', color: '#ff6b6b', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    // ── Deck counters ────────────────────────────────────────────────────────
+    // ── Deck counters ──────────────────────────────────────────────────────────
     this._playerDeckText = this.add.text(16, 38, '', {
       fontSize: '13px', color: '#88bbff', fontFamily: 'monospace',
     });
@@ -74,82 +80,127 @@ export default class BattleScene extends Phaser.Scene {
       fontSize: '13px', color: '#ff8888', fontFamily: 'monospace',
     }).setOrigin(1, 0);
 
-    // ── Sprite home positions ────────────────────────────────────────────────
+    // ── Sprite home positions ──────────────────────────────────────────────────
     this._playerHomeX = 155;
     this._enemyHomeX  = 645;
 
-    // ── Player panel (left) ──────────────────────────────────────────────────
-    this._playerSprite = this.add.rectangle(this._playerHomeX, 160, 64, 64, 0x33aa55);
-
-    this._playerName = this.add.text(16, 68, '', {
+    // ── Player panel ──────────────────────────────────────────────────────────
+    this._playerSprite = this.add.rectangle(this._playerHomeX, 155, 64, 64, 0x33aa55);
+    this._playerName   = this.add.text(16, 68, '', {
       fontSize: '17px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
     });
-    this.add.rectangle(16, 100, BAR_W, BAR_H, 0x2a2a2a).setOrigin(0, 0.5);
-    this._playerHpFill = this.add.rectangle(16, 100, BAR_W, BAR_H, 0x44ff44).setOrigin(0, 0.5);
-    this._playerHpText = this.add.text(16, 108, '', {
+    this.add.rectangle(16, 96, BAR_W, BAR_H, 0x2a2a2a).setOrigin(0, 0.5);
+    this._playerHpFill = this.add.rectangle(16, 96, BAR_W, BAR_H, 0x44ff44).setOrigin(0, 0.5);
+    this._playerHpText = this.add.text(16, 103, '', {
       fontSize: '11px', color: '#aaffaa', fontFamily: 'monospace',
     });
-    this._playerStats = this.add.text(16, 122, '', {
+    this._playerStats  = this.add.text(16, 116, '', {
       fontSize: '12px', color: '#cccccc', fontFamily: 'monospace',
     });
+    this._playerAdvText = this.add.text(16, 130, '', {
+      fontSize: '10px', fontFamily: 'monospace',
+    });
 
-    // ── Enemy panel (right) ──────────────────────────────────────────────────
-    this._enemySprite = this.add.rectangle(this._enemyHomeX, 160, 64, 64, 0xaa3333);
+    // Player stamina dots
+    this.add.text(16, DOT_Y - 12, 'STAMINA', {
+      fontSize: '8px', color: '#334433', fontFamily: 'monospace',
+    });
+    this._playerDotObjs = [];
+    for (let i = 0; i < 4; i++) {
+      const dot = this.add.rectangle(
+        16 + i * (DOT_SIZE + DOT_GAP) + DOT_SIZE / 2,
+        DOT_Y + DOT_SIZE / 2,
+        DOT_SIZE, DOT_SIZE, 0x222244
+      );
+      this._playerDotObjs.push(dot);
+    }
 
-    this._enemyName = this.add.text(width - 16, 68, '', {
+    // ── Enemy panel ───────────────────────────────────────────────────────────
+    this._enemySprite = this.add.rectangle(this._enemyHomeX, 155, 64, 64, 0xaa3333);
+    this._enemyName   = this.add.text(width - 16, 68, '', {
       fontSize: '17px', color: '#ff8888', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(1, 0);
-    this.add.rectangle(width - 16 - BAR_W, 100, BAR_W, BAR_H, 0x2a2a2a).setOrigin(0, 0.5);
-    this._enemyHpFill = this.add.rectangle(width - 16 - BAR_W, 100, BAR_W, BAR_H, 0xff4444).setOrigin(0, 0.5);
-    this._enemyHpText = this.add.text(width - 16, 108, '', {
+    this.add.rectangle(width - 16 - BAR_W, 96, BAR_W, BAR_H, 0x2a2a2a).setOrigin(0, 0.5);
+    this._enemyHpFill = this.add.rectangle(width - 16 - BAR_W, 96, BAR_W, BAR_H, 0xff4444).setOrigin(0, 0.5);
+    this._enemyHpText = this.add.text(width - 16, 103, '', {
       fontSize: '11px', color: '#ffaaaa', fontFamily: 'monospace',
     }).setOrigin(1, 0);
-    this._enemyStats = this.add.text(width - 16, 122, '', {
+    this._enemyStats  = this.add.text(width - 16, 116, '', {
       fontSize: '12px', color: '#cccccc', fontFamily: 'monospace',
     }).setOrigin(1, 0);
+    this._enemyAdvText = this.add.text(width - 16, 130, '', {
+      fontSize: '10px', fontFamily: 'monospace',
+    }).setOrigin(1, 0);
 
-    // ── Battle log ───────────────────────────────────────────────────────────
+    // Enemy stamina dots (right-aligned)
+    this.add.text(width - 16, DOT_Y - 12, 'STAMINA', {
+      fontSize: '8px', color: '#443333', fontFamily: 'monospace',
+    }).setOrigin(1, 0);
+    this._enemyDotObjs = [];
+    for (let i = 0; i < 4; i++) {
+      const dot = this.add.rectangle(
+        width - 16 - (3 - i) * (DOT_SIZE + DOT_GAP) - DOT_SIZE / 2,
+        DOT_Y + DOT_SIZE / 2,
+        DOT_SIZE, DOT_SIZE, 0x222244
+      );
+      this._enemyDotObjs.push(dot);
+    }
+
+    // ── Battle log ────────────────────────────────────────────────────────────
     this.add.rectangle(width / 2, 210, width - 32, 68, 0x080814).setOrigin(0.5);
     this._logText = this.add.text(width / 2, 210, '', {
       fontSize: '12px', color: '#dddddd', fontFamily: 'monospace',
       wordWrap: { width: width - 56 }, align: 'center',
     }).setOrigin(0.5);
 
-    // ── Turn indicator ───────────────────────────────────────────────────────
-    this._turnText = this.add.text(width / 2, 256, '', {
-      fontSize: '13px', color: '#ffdd44', fontFamily: 'monospace',
+    // ── Phase + queue display ─────────────────────────────────────────────────
+    this._phaseText = this.add.text(width / 2, 252, '', {
+      fontSize: '12px', color: '#ffdd44', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    // ── Action buttons ───────────────────────────────────────────────────────
-    const btnY    = 296;
+    this._queueText = this.add.text(width / 2, 268, '', {
+      fontSize: '10px', color: '#7799bb', fontFamily: 'monospace',
+    }).setOrigin(0.5);
+
+    // ── Action buttons ────────────────────────────────────────────────────────
+    const btnY    = 302;
     const btnDefs = [
-      { key: 'ATK',  label: '[ ATK ]',  x: width / 2 - 150, color: '#ff9966' },
-      { key: 'DEF',  label: '[ DEF ]',  x: width / 2,       color: '#66aaff' },
-      { key: 'ITEM', label: '[ ITEM ]', x: width / 2 + 150, color: '#ffdd44' },
+      { key: 'ATK',    label: '[ ATK ]',    x: width / 2 - 248, color: '#ff9966' },
+      { key: 'DEFEND', label: '[ DEFEND ]', x: width / 2 - 110, color: '#66aaff' },
+      { key: 'ITEM',   label: '[ ITEM ]',   x: width / 2 + 22,  color: '#ffdd44' },
+      { key: 'SWAP',   label: '[ SWAP ]',   x: width / 2 + 148, color: '#cc88ff' },
     ];
     this._buttons = {};
     btnDefs.forEach(({ key, label, x, color }) => {
       const btn = this.add.text(x, btnY, label, {
-        fontSize: '20px', color, fontFamily: 'monospace',
-        backgroundColor: '#141428', padding: { x: 10, y: 6 },
+        fontSize: '17px', color, fontFamily: 'monospace',
+        backgroundColor: '#141428', padding: { x: 8, y: 5 },
       }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
       btn.on('pointerover', () => { if (!btn.getData('disabled')) btn.setScale(1.08); });
       btn.on('pointerout',  () => btn.setScale(1));
-      btn.on('pointerdown', () => { if (!btn.getData('disabled')) this._onAction(key); });
+      btn.on('pointerdown', () => { if (!btn.getData('disabled')) this._queueAction(key); });
       this._buttons[key] = btn;
     });
 
-    this._itemLabel = this.add.text(width / 2 + 150, 330, '', {
-      fontSize: '10px', color: '#999999', fontFamily: 'monospace',
+    // END TURN button
+    this._endTurnBtn = this.add.text(width / 2 + 286, btnY, '[ END ]', {
+      fontSize: '17px', color: '#a8ff78', fontFamily: 'monospace',
+      backgroundColor: '#141428', padding: { x: 8, y: 5 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    this._endTurnBtn.on('pointerover', () => { if (!this._endTurnBtn.getData('disabled')) this._endTurnBtn.setScale(1.08); });
+    this._endTurnBtn.on('pointerout',  () => this._endTurnBtn.setScale(1));
+    this._endTurnBtn.on('pointerdown', () => { if (!this._endTurnBtn.getData('disabled')) this._onEndTurn(); });
+
+    this._itemLabel = this.add.text(width / 2 + 22, 330, '', {
+      fontSize: '9px', color: '#888888', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    // ── Deploy banner ────────────────────────────────────────────────────────
-    this._deployBanner = this.add.text(width / 2, HC_Y - 18, '\u25bc Choose your next creature \u25bc', {
+    // ── Deploy / swap banner ──────────────────────────────────────────────────
+    this._deployBanner = this.add.text(width / 2, HC_Y - 20, '', {
       fontSize: '13px', color: '#ffdd44', fontFamily: 'monospace',
     }).setOrigin(0.5).setVisible(false);
 
-    // ── Status overlay ────────────────────────────────────────────────────────
+    // ── Victory / defeat overlay ──────────────────────────────────────────────
     this._statusText = this.add.text(width / 2, height / 2, '', {
       fontSize: '38px', color: '#ffffff', fontFamily: 'monospace',
       backgroundColor: '#000000', padding: { x: 28, y: 14 },
@@ -157,8 +208,412 @@ export default class BattleScene extends Phaser.Scene {
 
     // ── Hand UI ───────────────────────────────────────────────────────────────
     this._buildHandUI();
+    this._startTurn();
+  }
 
+  // ── Turn lifecycle ────────────────────────────────────────────────────────
+
+  _startTurn() {
+    const activePlayer = this.battleSystem.playerHand[0];
+    const activeEnemy  = this.battleSystem.enemyHand[0];
+
+    this._playerQueue = new BattleQueue(activePlayer);
+    this._enemyQueue  = new BattleQueue(activeEnemy);
+    this._resolving   = false;
+
+    this._phaseText.setText('> Queue your actions, then [ END ]');
+    this._queueText.setText('');
+    this._refreshStaminaDots();
     this._refreshUI();
+    this._setQueueButtons(true);
+  }
+
+  // ── Action queueing ───────────────────────────────────────────────────────
+
+  _queueAction(key) {
+    if (this._resolving || this.battleSystem.isOver()) return;
+
+    if (key === 'SWAP') {
+      if (this._deckRoster.filter(c => c.isAlive()).length <= 1) return;
+      this._swapSelectPhase = true;
+      this._setQueueButtons(false);
+      this._deployBanner.setText('\u25bc Choose creature to swap in \u25bc').setVisible(true);
+      this._refreshHandUI();
+      return;
+    }
+
+    if (key === 'ITEM') {
+      this._openItemQueueMenu();
+      return;
+    }
+
+    const ok = this._playerQueue.queueAction(key);
+    if (!ok) return;
+
+    this._refreshStaminaDots();
+    this._updateQueueText();
+    this._setQueueButtons(true);
+  }
+
+  _queueSwap(rosterIdx) {
+    const chosen = this._deckRoster[rosterIdx];
+    if (!chosen || !chosen.isAlive() || chosen === this._activeCreature) return;
+
+    this._playerQueue.queueAction('SWAP', rosterIdx);
+    this._swapSelectPhase = false;
+    this._deployBanner.setVisible(false);
+    this._updateQueueText();
+    this._onEndTurn();
+  }
+
+  _onEndTurn() {
+    if (this._resolving || this.battleSystem.isOver()) return;
+
+    this._resolving       = true;
+    this._swapSelectPhase = false;
+    this._deployBanner.setVisible(false);
+    this._setQueueButtons(false);
+    this._phaseText.setText('... Resolving');
+
+    this._generateEnemyQueue();
+    this.time.delayedCall(200, () => this._startResolution());
+  }
+
+  _generateEnemyQueue() {
+    const enemy  = this.battleSystem.enemyHand[0];
+    const player = this.battleSystem.playerHand[0];
+    if (!enemy?.isAlive() || !player?.isAlive()) return;
+
+    const eRatio = enemy.currentHP / enemy.getStats().hp;
+    const max    = this._enemyQueue.maxStamina;
+
+    for (let i = 0; i < max; i++) {
+      if (!this._enemyQueue.canAfford()) break;
+      // Defend in first slot when low HP, otherwise attack
+      if (eRatio < 0.4 && i === 0) {
+        this._enemyQueue.queueAction('DEFEND');
+      } else {
+        this._enemyQueue.queueAction('ATK');
+      }
+    }
+
+    this._refreshStaminaDots();
+  }
+
+  // ── Resolution — paired simultaneous slots ────────────────────────────────
+
+  _startResolution() {
+    const pActions = this._playerQueue.get();
+    const eActions = this._enemyQueue.get();
+
+    // Pair up by slot index; extras (e.g. Flying's slot 4) have null on the other side
+    const maxSlots = Math.max(pActions.length, eActions.length);
+    const pairs = [];
+    for (let i = 0; i < maxSlots; i++) {
+      pairs.push({ p: pActions[i] || null, e: eActions[i] || null });
+    }
+
+    this._resolvePairs(pairs, 0);
+  }
+
+  _resolvePairs(pairs, idx) {
+    if (idx >= pairs.length) {
+      this._postResolution();
+      return;
+    }
+
+    const { p, e } = pairs[idx];
+    const next = () => this.time.delayedCall(300, () => this._resolvePairs(pairs, idx + 1));
+    this._resolvePair(p, e, next);
+  }
+
+  _resolvePair(pAct, eAct, onComplete) {
+    const sys    = this.battleSystem;
+    let   player = sys.playerHand[0];
+    const enemy  = sys.enemyHand[0];
+
+    // Skip entirely if both creatures are dead
+    if (!player?.isAlive() && !enemy?.isAlive()) { onComplete(); return; }
+
+    // ── SWAP: execute first, then remaining action is e vs new creature ───────
+    if (pAct?.type === 'SWAP') {
+      const chosen = this._deckRoster[pAct.payload];
+      if (chosen?.isAlive() && chosen !== this._activeCreature) {
+        sys.swapCreature(chosen);
+        this._activeCreature = chosen;
+        sys._log(`Swapped to ${chosen.name}!`);
+        this._refreshUI();
+      }
+      // Resolve only enemy's slot action (against new creature, no player attack)
+      this._resolvePair(null, eAct, onComplete);
+      return;
+    }
+
+    // ── Compute damage for both sides simultaneously ───────────────────────────
+    player = sys.playerHand[0]; // refresh after possible swap
+    const pIsAtk  = pAct?.type === 'ATK'    && player?.isAlive() && enemy?.isAlive();
+    const pIsDef  = pAct?.type === 'DEFEND' && player?.isAlive();
+    const pIsItem = pAct?.type === 'ITEM'   && player?.isAlive();
+    const eIsAtk  = eAct?.type === 'ATK'    && enemy?.isAlive()  && player?.isAlive();
+    const eIsDef  = eAct?.type === 'DEFEND' && enemy?.isAlive();
+
+    let playerDmg = 0; // damage dealt TO enemy
+    let enemyDmg  = 0; // damage dealt TO player
+
+    if (pIsAtk) {
+      const aStats = player.getStats();
+      const dStats = enemy.getStats();
+      const adv    = ADVANTAGE[player.archetype] === enemy.archetype ? 1.5 : 1;
+      playerDmg = Math.max(1, Math.ceil((aStats.atk - dStats.def) * adv));
+      if (eIsDef) playerDmg = Math.max(1, Math.ceil(playerDmg * DEFEND_RATIO));
+    }
+
+    if (eIsAtk) {
+      const aStats = enemy.getStats();
+      const dStats = player.getStats();
+      const adv    = ADVANTAGE[enemy.archetype] === player.archetype ? 1.5 : 1;
+      enemyDmg = Math.max(1, Math.ceil((aStats.atk - dStats.def) * adv));
+      if (pIsDef) enemyDmg = Math.max(1, Math.ceil(enemyDmg * DEFEND_RATIO));
+    }
+
+    // ── Apply damage simultaneously ───────────────────────────────────────────
+    if (playerDmg > 0) enemy.takeDamage(playerDmg);
+    if (enemyDmg  > 0) player.takeDamage(enemyDmg);
+
+    // ── Apply item ────────────────────────────────────────────────────────────
+    if (pIsItem && sys.playerItems.length > 0) {
+      const itemIdx = pAct.payload;
+      if (itemIdx !== null && itemIdx < sys.playerItems.length) {
+        const [sel] = sys.playerItems.splice(itemIdx, 1);
+        sys.playerItems.unshift(sel);
+      }
+      sys.playerAction('ITEM', 0);
+    }
+
+    // ── Log ───────────────────────────────────────────────────────────────────
+    const advTagP = (pIsAtk && ADVANTAGE[player.archetype] === enemy.archetype)  ? ' [ADV]' : '';
+    const advTagE = (eIsAtk && ADVANTAGE[enemy.archetype]  === player.archetype) ? ' [ADV]' : '';
+
+    if (pIsAtk) sys._log(`${player.name} hits ${enemy.name} for ${playerDmg}${eIsDef ? ' [DEF]' : ''}${advTagP}.`);
+    if (eIsAtk) sys._log(`${enemy.name} hits ${player.name} for ${enemyDmg}${pIsDef ? ' [DEF]' : ''}${advTagE}.`);
+    if (pIsDef && !eIsAtk) sys._log(`${player.name} defends.`);
+    if (eIsDef && !pIsAtk) sys._log(`${enemy.name} defends.`);
+
+    // ── Animate both at the same time ─────────────────────────────────────────
+    const needsPlayerAnim = pIsAtk;
+    const needsEnemyAnim  = eIsAtk;
+
+    if (!needsPlayerAnim && !needsEnemyAnim) {
+      this._refreshUI();
+      onComplete();
+      return;
+    }
+
+    let pending = (needsPlayerAnim ? 1 : 0) + (needsEnemyAnim ? 1 : 0);
+    const animDone = () => {
+      pending--;
+      if (pending === 0) {
+        this._refreshUI();
+        this._handleFades(player, enemy, onComplete);
+      }
+    };
+
+    if (needsPlayerAnim) {
+      this.tweens.add({
+        targets: this._playerSprite, x: this._playerHomeX + 22,
+        duration: 110, yoyo: true, ease: 'Quad.easeOut',
+        onComplete: () => { this._playerSprite.x = this._playerHomeX; animDone(); },
+      });
+    }
+
+    if (needsEnemyAnim) {
+      this.tweens.add({
+        targets: this._enemySprite, x: this._enemyHomeX - 22,
+        duration: 110, yoyo: true, ease: 'Quad.easeOut',
+        onComplete: () => { this._enemySprite.x = this._enemyHomeX; animDone(); },
+      });
+    }
+  }
+
+  // Fade sprites for any creatures that died in the last pair, then continue
+  _handleFades(player, enemy, onComplete) {
+    let pending = 0;
+    const fadeDone = () => { pending--; if (pending === 0) onComplete(); };
+
+    if (enemy  && !enemy.isAlive())  { pending++; this._fadeSprite(this._enemySprite,  fadeDone); }
+    if (player && !player.isAlive()) { pending++; this._fadeSprite(this._playerSprite, fadeDone); }
+    if (pending === 0) onComplete();
+  }
+
+  _postResolution() {
+    const sys = this.battleSystem;
+    sys.nextTurn(); // cull dead, reset turn tracker
+    this._refreshUI();
+    this._refreshStaminaDots();
+
+    if (sys.isOver()) {
+      this._endBattle();
+      return;
+    }
+
+    if (!this._activeCreature.isAlive()) {
+      this._enterDeployPhase();
+      return;
+    }
+
+    if (sys.playerHand[0]?.isAlive()) {
+      this._activeCreature = sys.playerHand[0];
+    }
+
+    this.time.delayedCall(400, () => this._startTurn());
+  }
+
+  // ── Stamina dots ──────────────────────────────────────────────────────────
+
+  _refreshStaminaDots() {
+    const pDots = this._playerQueue.getStaminaDots();
+    const eDots = this._enemyQueue.getStaminaDots();
+    const pMax  = this._playerQueue.maxStamina;
+    const eMax  = this._enemyQueue.maxStamina;
+
+    for (let i = 0; i < this._playerDotObjs.length; i++) {
+      if (i < pMax) {
+        this._playerDotObjs[i].setFillStyle(pDots[i] ? 0x44ff88 : 0x223322).setVisible(true);
+      } else {
+        this._playerDotObjs[i].setVisible(false);
+      }
+    }
+
+    for (let i = 0; i < this._enemyDotObjs.length; i++) {
+      if (i < eMax) {
+        this._enemyDotObjs[i].setFillStyle(eDots[i] ? 0xff5566 : 0x332222).setVisible(true);
+      } else {
+        this._enemyDotObjs[i].setVisible(false);
+      }
+    }
+  }
+
+  _updateQueueText() {
+    const q = this._playerQueue.get();
+    if (q.length === 0) { this._queueText.setText(''); return; }
+    const labels = { ATK: 'ATK', DEFEND: 'DEF', ITEM: 'ITEM', SWAP: 'SWAP' };
+    this._queueText.setText('Queue: ' + q.map(a => labels[a.type] || a.type).join(' \u203a '));
+  }
+
+  // ── Button state ──────────────────────────────────────────────────────────
+
+  _setQueueButtons(enabled) {
+    const sys     = this.battleSystem;
+    const afford  = enabled && this._playerQueue.canAfford();
+    const hasItem = sys.playerItems.length > 0;
+    const canSwap = this._deckRoster.filter(c => c.isAlive()).length > 1;
+
+    Object.entries(this._buttons).forEach(([key, btn]) => {
+      const dis = !afford
+        || (key === 'ITEM' && !hasItem)
+        || (key === 'SWAP' && !canSwap);
+      btn.setData('disabled', dis).setAlpha(dis ? 0.35 : 1);
+    });
+
+    this._endTurnBtn.setData('disabled', !enabled).setAlpha(enabled ? 1 : 0.35);
+  }
+
+  // ── Item queue overlay ────────────────────────────────────────────────────
+
+  _openItemQueueMenu() {
+    const { width, height } = this.scale;
+    const sys = this.battleSystem;
+
+    const objs      = [];
+    const closeMenu = () => objs.forEach(o => o.destroy());
+
+    const backdrop = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.72)
+      .setDepth(50).setInteractive();
+    objs.push(backdrop);
+    backdrop.on('pointerdown', () => { closeMenu(); this._setQueueButtons(true); });
+
+    const PANEL_W = 340;
+    const ITEM_H  = 54;
+    const PAD_TOP = 46;
+    const PAD_BOT = 14;
+    const panelH  = PAD_TOP + sys.playerItems.length * ITEM_H + PAD_BOT;
+    const panelY  = height / 2 - panelH / 2;
+
+    objs.push(this.add.rectangle(width / 2, height / 2, PANEL_W, panelH, 0x111122).setDepth(51));
+
+    const gfx = this.add.graphics().setDepth(51);
+    gfx.lineStyle(2, 0x664488, 1);
+    gfx.strokeRect(width / 2 - PANEL_W / 2, panelY, PANEL_W, panelH);
+    objs.push(gfx);
+
+    objs.push(this.add.text(width / 2, panelY + 14, 'QUEUE ITEM', {
+      fontSize: '16px', color: '#cc88ff', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5, 0).setDepth(52));
+
+    objs.push(this.add.text(width / 2, panelY + panelH - 10, 'Click outside to cancel', {
+      fontSize: '10px', color: '#333344', fontFamily: 'monospace',
+    }).setOrigin(0.5, 1).setDepth(52));
+
+    sys.playerItems.forEach((item, i) => {
+      const iy = panelY + PAD_TOP + i * ITEM_H;
+      const iW = PANEL_W - 20;
+
+      const itemBg = this.add.rectangle(width / 2, iy + (ITEM_H - 6) / 2, iW, ITEM_H - 6, 0x1a1133).setDepth(52);
+      objs.push(itemBg);
+
+      objs.push(this.add.text(width / 2 - iW / 2 + 6, iy + 6, item.name, {
+        fontSize: '13px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+      }).setOrigin(0, 0).setDepth(53));
+
+      const typeColor = item.type === 'heal' ? '#44ff88' : item.type === 'atkBuff' ? '#ff9966' : '#66aaff';
+      objs.push(this.add.text(width / 2 - iW / 2 + 6, iy + 24, item.description, {
+        fontSize: '11px', color: typeColor, fontFamily: 'monospace',
+      }).setOrigin(0, 0).setDepth(53));
+
+      const hit = this.add.rectangle(width / 2, iy + (ITEM_H - 6) / 2, iW, ITEM_H - 6, 0x000000, 0)
+        .setDepth(54).setInteractive({ useHandCursor: true });
+      objs.push(hit);
+
+      hit.on('pointerover', () => itemBg.setFillStyle(0x2a1a44));
+      hit.on('pointerout',  () => itemBg.setFillStyle(0x1a1133));
+      hit.on('pointerdown', () => {
+        closeMenu();
+        const ok = this._playerQueue.queueAction('ITEM', i);
+        if (ok) { this._refreshStaminaDots(); this._updateQueueText(); }
+        this._setQueueButtons(true);
+      });
+    });
+  }
+
+  // ── Deploy mechanic ───────────────────────────────────────────────────────
+
+  _enterDeployPhase() {
+    this._deployPhase = true;
+    this._deployBanner.setText('\u25bc Choose your next creature \u25bc').setVisible(true);
+    this._playerSprite.setVisible(false);
+    this._setQueueButtons(false);
+    this._refreshHandUI();
+  }
+
+  _deployCreature(rosterIdx) {
+    const sys    = this.battleSystem;
+    const chosen = this._deckRoster[rosterIdx];
+    if (!chosen || !chosen.isAlive()) return;
+
+    const idx = sys.playerHand.indexOf(chosen);
+    if (idx > 0) {
+      sys.playerHand.splice(idx, 1);
+      sys.playerHand.unshift(chosen);
+    }
+
+    this._activeCreature = chosen;
+    this._deployPhase    = false;
+    this._deployBanner.setVisible(false);
+    this._playerSprite.setVisible(true);
+    sys._log(`${chosen.name} deployed!`);
+    this._refreshUI();
+
+    this.time.delayedCall(200, () => this._startTurn());
   }
 
   // ── Hand UI ───────────────────────────────────────────────────────────────
@@ -170,57 +625,48 @@ export default class BattleScene extends Phaser.Scene {
       const cx = HC_X0 + i * (HC_W + HC_GAP);
       const cy = HC_Y;
 
-      const bg = this.add.rectangle(cx + HC_W / 2, cy + HC_H / 2, HC_W, HC_H, 0x0d0d1a);
-
-      const border = this.add.graphics();
-
+      const bg       = this.add.rectangle(cx + HC_W / 2, cy + HC_H / 2, HC_W, HC_H, 0x0d0d1a);
+      const border   = this.add.graphics();
       const nameText = this.add.text(cx + HC_W / 2, cy + 6, '', {
         fontSize: '11px', fontFamily: 'monospace', fontStyle: 'bold',
       }).setOrigin(0.5, 0);
-
       const archText = this.add.text(cx + HC_W / 2, cy + 20, '', {
         fontSize: '9px', color: '#444466', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
-
-      const hpBarBg = this.add.rectangle(cx + 8, cy + 33, HC_BAR_W, HC_BAR_H, 0x2a2a2a).setOrigin(0, 0.5);
+      const hpBarBg   = this.add.rectangle(cx + 8, cy + 33, HC_BAR_W, HC_BAR_H, 0x2a2a2a).setOrigin(0, 0.5);
       const hpBarFill = this.add.rectangle(cx + 8, cy + 33, HC_BAR_W, HC_BAR_H, 0x44ff44).setOrigin(0, 0.5);
-
-      const hpText = this.add.text(cx + HC_W / 2, cy + 40, '', {
+      const hpText    = this.add.text(cx + HC_W / 2, cy + 40, '', {
         fontSize: '9px', color: '#aaffaa', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
-
       const statsText = this.add.text(cx + HC_W / 2, cy + 54, '', {
         fontSize: '9px', color: '#cccccc', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
-
-      const abilText = this.add.text(cx + HC_W / 2, cy + 68, '', {
+      const abilText  = this.add.text(cx + HC_W / 2, cy + 68, '', {
         fontSize: '8px', color: '#554466', fontFamily: 'monospace',
         wordWrap: { width: HC_W - 8 },
       }).setOrigin(0.5, 0);
-
-      const statusText = this.add.text(cx + HC_W / 2, cy + HC_H - 24, '', {
+      const statusText = this.add.text(cx + HC_W / 2, cy + HC_H - 22, '', {
         fontSize: '10px', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
 
-      // Invisible hit area — always created, interactivity managed via _deployPhase check
       const hit = this.add
         .rectangle(cx + HC_W / 2, cy + HC_H / 2, HC_W, HC_H, 0x000000, 0)
         .setInteractive({ useHandCursor: true });
 
-      const idx = i; // capture for closure
+      const ii = i;
       hit.on('pointerover', () => {
-        if (this._deployPhase && this._deckRoster[idx]?.isAlive()) {
-          bg.setFillStyle(0x1a1a3a);
-        }
+        const c = this._deckRoster[ii];
+        if (this._deployPhase     && c?.isAlive()) bg.setFillStyle(0x1a1a3a);
+        if (this._swapSelectPhase && c?.isAlive() && c !== this._activeCreature) bg.setFillStyle(0x2a1a3a);
       });
       hit.on('pointerout', () => {
-        if (!this._deployPhase) bg.setFillStyle(0x0d0d1a);
-        else this._refreshHandCard(idx);
+        if (!this._deployPhase && !this._swapSelectPhase) bg.setFillStyle(0x0d0d1a);
+        else this._refreshHandCard(ii);
       });
       hit.on('pointerdown', () => {
-        if (this._deployPhase && this._deckRoster[idx]?.isAlive()) {
-          this._deployCreature(idx);
-        }
+        const c = this._deckRoster[ii];
+        if (this._deployPhase     && c?.isAlive()) this._deployCreature(ii);
+        else if (this._swapSelectPhase && c?.isAlive() && c !== this._activeCreature) this._queueSwap(ii);
       });
 
       this._handCards.push({ cx, cy, bg, border, nameText, archText,
@@ -236,62 +682,53 @@ export default class BattleScene extends Phaser.Scene {
     const alive     = creature.isAlive();
     const isActive  = creature === this._activeCreature && alive;
     const isDead    = !alive;
-    const canDeploy = this._deployPhase && alive && !isActive;
+    const canDeploy = this._deployPhase     && alive && !isActive;
+    const canSwap   = this._swapSelectPhase && alive && !isActive;
     const stats     = creature.getStats();
 
-    // Background
-    const bgFill = isDead ? 0x080808 : (isActive ? 0x0a0a22 : 0x0d0d1a);
-    card.bg.setFillStyle(bgFill);
+    card.bg.setFillStyle(isDead ? 0x080808 : isActive ? 0x0a0a22 : 0x0d0d1a);
 
-    // Border
     card.border.clear();
     let borderColor = 0x1a1a3a, borderW = 1;
-    if (isActive)    { borderColor = 0x4466bb; borderW = 2; }
+    if (isActive)       { borderColor = 0x4466bb; borderW = 2; }
     else if (canDeploy) { borderColor = 0xffdd44; borderW = 2; }
-    else if (isDead) { borderColor = 0x220000; }
+    else if (canSwap)   { borderColor = 0xcc88ff; borderW = 2; }
+    else if (isDead)    { borderColor = 0x220000; }
     card.border.lineStyle(borderW, borderColor, 1);
     card.border.strokeRect(card.cx, card.cy, HC_W, HC_H);
 
-    // Name
-    const archColor = ARCH_COLOR[creature.archetype] || '#aaaaaa';
-    const alpha     = isDead ? 0.35 : 1;
-    const displayName = creature.name.length > 16
-      ? creature.name.slice(0, 15) + '\u2026'
-      : creature.name;
+    const archColor   = ARCH_COLOR[creature.archetype] || '#aaaaaa';
+    const alpha       = isDead ? 0.35 : 1;
+    const displayName = creature.name.length > 16 ? creature.name.slice(0, 15) + '\u2026' : creature.name;
     card.nameText.setText(displayName).setColor(archColor).setAlpha(alpha);
-    card.archText.setText(`[${creature.archetype}]`).setAlpha(isDead ? 0.25 : 0.7);
 
-    // HP bar
+    const activeEnemy = this.battleSystem.enemyHand.find(c => c.isAlive());
+    let archLabel = `[${creature.archetype}]`, archColor2 = '#444466';
+    if (!isDead && activeEnemy) {
+      if (ADVANTAGE[creature.archetype] === activeEnemy.archetype)        { archLabel = `[${creature.archetype}] \u2191`; archColor2 = '#66cc66'; }
+      else if (ADVANTAGE[activeEnemy.archetype] === creature.archetype)   { archLabel = `[${creature.archetype}] \u2193`; archColor2 = '#cc5555'; }
+    }
+    card.archText.setText(archLabel).setColor(archColor2).setAlpha(isDead ? 0.25 : 0.85);
+
     const ratio = Math.max(0, creature.currentHP / stats.hp);
     card.hpBarFill.setSize(Math.max(2, Math.floor(HC_BAR_W * ratio)), HC_BAR_H);
-    const tint = isDead ? 0x333333 : (ratio > 0.5 ? 0x44ff44 : ratio > 0.25 ? 0xffdd44 : 0xff3333);
-    card.hpBarFill.setFillStyle(tint);
+    card.hpBarFill.setFillStyle(isDead ? 0x333333 : ratio > 0.5 ? 0x44ff44 : ratio > 0.25 ? 0xffdd44 : 0xff3333);
     card.hpText
       .setText(isDead ? 'FAINTED' : `${Math.max(0, creature.currentHP)}/${stats.hp}`)
-      .setColor(isDead ? '#441111' : '#aaffaa')
-      .setAlpha(alpha);
+      .setColor(isDead ? '#441111' : '#aaffaa').setAlpha(alpha);
 
-    // Stats
-    card.statsText
-      .setText(`ATK:${stats.atk}  DEF:${stats.def}  SPD:${stats.spd}`)
-      .setAlpha(alpha);
+    card.statsText.setText(`ATK:${stats.atk}  DEF:${stats.def}  SPD:${stats.spd}`).setAlpha(alpha);
+    card.abilText.setText(`\u2726 ${creature.ability.name}`).setAlpha(isDead ? 0.2 : 0.6);
 
-    // Ability
-    card.abilText
-      .setText(`\u2726 ${creature.ability.name}`)
-      .setAlpha(isDead ? 0.2 : 0.6);
-
-    // Status badge
     if (isActive)       card.statusText.setText('\u25b2 ACTIVE').setColor('#5588cc');
     else if (isDead)    card.statusText.setText('\u2715 FAINTED').setColor('#442222');
     else if (canDeploy) card.statusText.setText('\u25ba DEPLOY').setColor('#ffdd44');
+    else if (canSwap)   card.statusText.setText('\u21c4 SWAP IN').setColor('#cc88ff');
     else                card.statusText.setText('');
   }
 
   _refreshHandUI() {
-    for (let i = 0; i < this._handCards.length; i++) {
-      this._refreshHandCard(i);
-    }
+    for (let i = 0; i < this._handCards.length; i++) this._refreshHandCard(i);
   }
 
   // ── UI helpers ────────────────────────────────────────────────────────────
@@ -304,8 +741,6 @@ export default class BattleScene extends Phaser.Scene {
     this._playerDeckText.setText(`You: ${sys.playerHand.filter(c => c.isAlive()).length}/${this._deckRoster.length}`);
     this._enemyDeckText.setText(`Enemy: ${sys.enemyHand.filter(c => c.isAlive()).length}/5`);
 
-    this._turnText.setText(sys.turn === 'player' ? '> Your Turn' : '... Enemy Turn');
-
     if (player) {
       const ps = player.getStats();
       this._playerName.setText(player.name);
@@ -316,6 +751,7 @@ export default class BattleScene extends Phaser.Scene {
       this._playerName.setText('\u2014');
       this._playerStats.setText('');
       this._playerHpText.setText('');
+      this._playerAdvText.setText('');
       this._playerSprite.setVisible(false);
     }
 
@@ -329,13 +765,20 @@ export default class BattleScene extends Phaser.Scene {
       this._enemyName.setText('\u2014');
       this._enemyStats.setText('');
       this._enemyHpText.setText('');
+      this._enemyAdvText.setText('');
       this._enemySprite.setVisible(false);
+    }
+
+    if (player && enemy) {
+      const pAdv = this._advantageLabel(player.archetype, enemy.archetype);
+      const eAdv = this._advantageLabel(enemy.archetype, player.archetype);
+      this._playerAdvText.setText(pAdv.text).setColor(pAdv.color);
+      this._enemyAdvText.setText(eAdv.text).setColor(eAdv.color);
     }
 
     const log = sys.battleLog;
     this._logText.setText(log.length > 0 ? log.slice(-2).join('\n') : '...');
 
-    const hasItem = sys.playerItems.length > 0;
     const itemCount = sys.playerItems.length;
     this._itemLabel.setText(
       itemCount > 0
@@ -343,160 +786,54 @@ export default class BattleScene extends Phaser.Scene {
         : '(empty)'
     );
 
-    const canAct = sys.turn === 'player' && !sys.isOver() && !this._deployPhase;
-    Object.entries(this._buttons).forEach(([key, btn]) => {
-      const disabled = !canAct || (key === 'ITEM' && !hasItem);
-      btn.setData('disabled', disabled);
-      btn.setAlpha(disabled ? 0.35 : 1);
-    });
-
     this._refreshHandUI();
   }
 
   _setHpBar(fill, label, current, max) {
     const ratio = Math.max(0, Math.min(1, current / max));
     fill.setSize(Math.max(2, Math.floor(BAR_W * ratio)), BAR_H);
-    const tint  = ratio > 0.5 ? 0x44ff44 : ratio > 0.25 ? 0xffdd44 : 0xff3333;
-    fill.setFillStyle(tint);
+    fill.setFillStyle(ratio > 0.5 ? 0x44ff44 : ratio > 0.25 ? 0xffdd44 : 0xff3333);
     label.setText(`${Math.max(0, current)}/${max}`);
   }
 
-  _lockButtons() {
-    Object.values(this._buttons).forEach(b => {
-      b.setData('disabled', true);
-      b.setAlpha(0.35);
-    });
-  }
-
-  // ── Deploy mechanic ───────────────────────────────────────────────────────
-
-  _enterDeployPhase() {
-    this._deployPhase = true;
-    this._deployBanner.setVisible(true);
-    this._playerSprite.setVisible(false);
-    this._refreshHandUI();
-  }
-
-  _deployCreature(rosterIdx) {
-    const sys     = this.battleSystem;
-    const chosen  = this._deckRoster[rosterIdx];
-    if (!chosen || !chosen.isAlive()) return;
-
-    sys.deployCreature(chosen);
-    this._activeCreature = chosen;
-    this._deployPhase    = false;
-    this._deployBanner.setVisible(false);
-    this._playerSprite.setVisible(true);
-
-    sys.nextTurn();
-    this._actionInProgress = false;
-    this._refreshUI();
-  }
-
-  // ── Action flow ───────────────────────────────────────────────────────────
-
-  _onAction(action) {
-    const sys = this.battleSystem;
-    if (sys.isOver()) return;
-    if (this._actionInProgress) return;
-    this._actionInProgress = true;
-
-    this._lockButtons();
-
-    this.tweens.killTweensOf(this._playerSprite);
-    this.tweens.killTweensOf(this._enemySprite);
-    this._playerSprite.x = this._playerHomeX;
-    this._enemySprite.x  = this._enemyHomeX;
-
-    const enemyWasAlive = sys.enemyHand[0]?.isAlive() ?? false;
-
-    sys.playerAction(action, 0);
-
-    const dx        = action === 'ATK' ? 22 : action === 'ITEM' ? 0 : -14;
-    const enemyDied = enemyWasAlive && !(sys.enemyHand[0]?.isAlive() ?? false);
-
-    this.tweens.add({
-      targets:  this._playerSprite,
-      x:        this._playerHomeX + dx,
-      duration: 110,
-      yoyo:     true,
-      ease:     'Quad.easeOut',
-      onComplete: () => {
-        this._playerSprite.x = this._playerHomeX;
-        this._refreshUI();
-
-        const afterPlayerAction = () => {
-          if (sys.isOver()) { this._actionInProgress = false; this._endBattle(); return; }
-
-          this.time.delayedCall(360, () => {
-            const playerWasAlive = sys.playerHand[0]?.isAlive() ?? false;
-            sys.enemyTurn();
-            const playerDied = playerWasAlive && !(sys.playerHand[0]?.isAlive() ?? false);
-
-            this.tweens.add({
-              targets:  this._enemySprite,
-              x:        this._enemyHomeX - 22,
-              duration: 110,
-              yoyo:     true,
-              ease:     'Quad.easeOut',
-              onComplete: () => {
-                this._enemySprite.x = this._enemyHomeX;
-                this._refreshUI();
-
-                const afterEnemyAction = () => {
-                  if (sys.isOver()) { this._actionInProgress = false; this._endBattle(); return; }
-
-                  if (playerDied) {
-                    // Stay in actionInProgress = true until player deploys
-                    this._enterDeployPhase();
-                    return;
-                  }
-
-                  sys.nextTurn();
-                  this._actionInProgress = false;
-                  this._refreshUI();
-                };
-
-                if (playerDied) {
-                  this._fadeSprite(this._playerSprite, afterEnemyAction);
-                } else {
-                  afterEnemyAction();
-                }
-              },
-            });
-          });
-        };
-
-        if (enemyDied) {
-          this._fadeSprite(this._enemySprite, afterPlayerAction);
-        } else {
-          afterPlayerAction();
-        }
-      },
-    });
+  _advantageLabel(myArch, theirArch) {
+    if (ADVANTAGE[myArch] === theirArch)  return { text: `\u2191 ADV (beats ${theirArch})`,  color: '#88ff88' };
+    if (ADVANTAGE[theirArch] === myArch)  return { text: `\u2193 WEAK (to ${theirArch})`,    color: '#ff8888' };
+    return { text: '\u2014 EVEN', color: '#888888' };
   }
 
   _fadeSprite(sprite, cb) {
     this.tweens.add({
-      targets:  sprite,
-      alpha:    0,
-      duration: 280,
-      onComplete: () => {
-        sprite.setAlpha(1);
-        cb();
-      },
+      targets: sprite, alpha: 0, duration: 280,
+      onComplete: () => { sprite.setAlpha(1); cb(); },
     });
   }
 
+  // ── End battle ────────────────────────────────────────────────────────────
+
   _endBattle() {
-    this._lockButtons();
+    this._setQueueButtons(false);
+    this._endTurnBtn.setData('disabled', true).setAlpha(0.35);
     this._statusText.setVisible(true);
+
+    GameState.selectedDeck = GameState.selectedDeck.filter((_, i) =>
+      this._deckRoster[i]?.isAlive()
+    );
+
+    const deadUids = this._deckRoster
+      .filter(c => !c.isAlive() && c._farmUid)
+      .map(c => c._farmUid);
+    if (deadUids.length > 0) {
+      GameState.removeDeadRunCreatures(deadUids);
+    } else {
+      GameState.saveGame();
+    }
 
     if (this.battleSystem.playerWon()) {
       this._statusText.setText('Victory!').setColor('#a8ff78');
       this.time.delayedCall(1400, () => {
         const capturable = this.battleSystem.getCapturableCreature();
-        this.scene.start('CaptureScene', { capturable });
+        this.scene.start('CaptureScene', { capturable, returnToMap: true });
       });
     } else {
       this._statusText.setText('Defeated!').setColor('#ff6b6b');

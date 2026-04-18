@@ -7,7 +7,8 @@ export default class CaptureScene extends Phaser.Scene {
 
   init(data) {
     // Receive the capturable Creature instance from BattleScene (may be null)
-    this._capturable = data?.capturable ?? null;
+    this._capturable  = data?.capturable  ?? null;
+    this._returnToMap = data?.returnToMap ?? false;
   }
 
   create() {
@@ -33,7 +34,7 @@ export default class CaptureScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       this._makeButton(width / 2, height / 2 + 30, 'CONTINUE', '#ffffff', () => {
-        this.scene.start('MenuScene');
+        this._completeCapture();
       });
     } else {
       // ── Creature card ─────────────────────────────────────────────────────
@@ -75,19 +76,47 @@ export default class CaptureScene extends Phaser.Scene {
       ).setOrigin(0.5);
 
       // ── Buttons ───────────────────────────────────────────────────────────
-      this._makeButton(width / 2 - 110, height - 130, 'CAPTURE', '#a8ff78', () => {
-        GameState.addToFarm(creature);
-        this.scene.start('MenuScene');
-      });
+      const handFull = (GameState.selectedDeck || []).length >= 5;
 
-      this._makeButton(width / 2 + 110, height - 130, 'RELEASE', '#ff8888', () => {
-        this.scene.start('MenuScene');
+      if (handFull) {
+        // Greyed-out HAND button (non-interactive)
+        this.add.text(width / 2 - 110, height - 130, '[ HAND ]', {
+          fontSize: '20px', color: '#333344', fontFamily: 'monospace',
+          backgroundColor: '#0d0d1a', padding: { x: 14, y: 8 },
+        }).setOrigin(0.5);
+        this.add.text(width / 2 - 110, height - 100, 'Hand full (5/5)', {
+          fontSize: '10px', color: '#443333', fontFamily: 'monospace',
+        }).setOrigin(0.5);
+      } else {
+        this._makeButton(width / 2 - 110, height - 130, 'HAND', '#a8ff78', () => {
+          GameState.addToHand(creature);
+          this._completeCapture();
+        });
+      }
+
+      this._makeButton(width / 2 + 110, height - 130, 'FARM', '#66aaff', () => {
+        GameState.addToFarm(creature);
+        this._completeCapture();
       });
 
       this.add.text(width / 2, height - 88,
-        'CAPTURE adds it to your farm   |   RELEASE lets it go',
-        { fontSize: '12px', color: '#555566', fontFamily: 'monospace' }
+        handFull
+          ? 'Hand is full \u2014 must send to FARM'
+          : 'HAND adds to active run   |   FARM stores permanently',
+        { fontSize: '12px', color: handFull ? '#884444' : '#555566', fontFamily: 'monospace' }
       ).setOrigin(0.5);
+    }
+  }
+
+  _completeCapture() {
+    if (this._returnToMap) {
+      GameState.runFightWins++;
+      GameState.lootTaken = false;
+      GameState.saveGame();
+      this.scene.start('MapScene');
+    } else {
+      GameState.clearRun();
+      this.scene.start('MenuScene');
     }
   }
 

@@ -26,9 +26,9 @@ const ITEM_X0       = 122;
 const ITEM_Y        = 490;
 
 const BASIC_ITEMS = [
-  { id: 'nectar_vial',  name: 'Nectar Vial',  type: 'heal',    value: 8, description: 'Heal 8 HP'  },
-  { id: 'venom_gland',  name: 'Venom Gland',  type: 'atkBuff', value: 1, description: 'ATK +1'     },
-  { id: 'chitin_shard', name: 'Chitin Shard', type: 'defBuff', value: 1, description: 'DEF +1'     },
+  { id: 'nectar_vial',  name: 'Nectar Vial',  type: 'heal',    value: 30, percent: true, description: 'Heal 30% HP'  },
+  { id: 'venom_gland',  name: 'Venom Gland',  type: 'atkBuff', value: 1,                 description: 'ATK +1'       },
+  { id: 'chitin_shard', name: 'Chitin Shard', type: 'defBuff', value: 1,                 description: 'DEF +1'       },
 ];
 const ITEM_COLOR = { heal: '#88ff88', atkBuff: '#ff9966', defBuff: '#66aaff' };
 const ITEM_BG    = { heal: 0x091509,  atkBuff: 0x150909,  defBuff: 0x090915 };
@@ -107,9 +107,9 @@ export default class DeckBuilderScene extends Phaser.Scene {
     }
 
     // ── Item tray ──────────────────────────────────────────────────────────────
-    this.add.rectangle(width / 2, ITEM_Y + ITEM_SLOT_H / 2 + 12, width, ITEM_SLOT_H + 30, 0x06060e).setOrigin(0.5);
+    this.add.rectangle(width / 2, ITEM_Y + ITEM_SLOT_H / 2 + 12, width, ITEM_SLOT_H + 30, 0x0c0c1e).setOrigin(0.5);
     this.add.text(width / 2, ITEM_Y - 14, 'ITEMS  (click to cycle: empty \u2192 Heal \u2192 ATK+ \u2192 DEF+)', {
-      fontSize: '10px', color: '#333355', fontFamily: 'monospace',
+      fontSize: '10px', color: '#6666aa', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
     this._items     = [null, null, null];
@@ -118,18 +118,18 @@ export default class DeckBuilderScene extends Phaser.Scene {
       const sx = ITEM_X0 + i * (ITEM_SLOT_W + ITEM_SLOT_GAP);
       const sy = ITEM_Y;
 
-      const bg   = this.add.rectangle(sx + ITEM_SLOT_W / 2, sy + ITEM_SLOT_H / 2, ITEM_SLOT_W, ITEM_SLOT_H, 0x080810);
+      const bg   = this.add.rectangle(sx + ITEM_SLOT_W / 2, sy + ITEM_SLOT_H / 2, ITEM_SLOT_W, ITEM_SLOT_H, 0x111128);
       const gfx  = this.add.graphics();
-      gfx.lineStyle(1, 0x222244, 1);
+      gfx.lineStyle(1, 0x3a3a66, 1);
       gfx.strokeRect(sx, sy, ITEM_SLOT_W, ITEM_SLOT_H);
       const nameT = this.add.text(sx + ITEM_SLOT_W / 2, sy + 8, '', {
         fontSize: '11px', fontFamily: 'monospace', fontStyle: 'bold',
       }).setOrigin(0.5, 0);
       const descT = this.add.text(sx + ITEM_SLOT_W / 2, sy + 25, '', {
-        fontSize: '9px', color: '#888899', fontFamily: 'monospace',
+        fontSize: '9px', color: '#aaaacc', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
       const hintT = this.add.text(sx + ITEM_SLOT_W / 2, sy + 36, '\u21bb click to cycle', {
-        fontSize: '8px', color: '#2a2a44', fontFamily: 'monospace',
+        fontSize: '8px', color: '#555588', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
 
       const hit = this.add
@@ -145,7 +145,7 @@ export default class DeckBuilderScene extends Phaser.Scene {
     this._refreshItemTray();
 
     // ── Buttons ───────────────────────────────────────────────────────────────
-    this._startBtn = this.add.text(width / 2, 563, '[ START BATTLE ]', {
+    this._startBtn = this.add.text(width / 2, 563, '[ START RUN ]', {
       fontSize: '22px', color: '#a8ff78', fontFamily: 'monospace',
       backgroundColor: '#141428', padding: { x: 18, y: 10 },
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
@@ -225,53 +225,65 @@ export default class DeckBuilderScene extends Phaser.Scene {
   }
 
   _buildCard(creature, cx, cy) {
-    const archColor = ARCH_COLOR[creature.archetype] || '#aaaaaa';
+    const alreadyPicked = creature.uid && this._deck.some(d => d.uid === creature.uid);
+    const archColor     = alreadyPicked ? '#444455' : (ARCH_COLOR[creature.archetype] || '#aaaaaa');
+    const alpha         = alreadyPicked ? 0.38 : 1;
 
-    const bg = this.add.rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H, 0x0d0d1a);
+    const bg = this.add.rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H,
+      alreadyPicked ? 0x080810 : 0x0d0d1a);
     const gfx = this.add.graphics();
-    gfx.lineStyle(1, 0x2a2a50, 1);
+    gfx.lineStyle(1, alreadyPicked ? 0x1a1a2a : 0x2a2a50, 1);
     gfx.strokeRect(cx, cy, CARD_W, CARD_H);
 
     const nameT = this.add.text(cx + CARD_W / 2, cy + 7, creature.name, {
       fontSize: '13px', color: archColor, fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5, 0);
+    }).setOrigin(0.5, 0).setAlpha(alpha);
 
     const statsT = this.add.text(cx + CARD_W / 2, cy + 26,
       `HP:${creature.baseHp}  ATK:${creature.baseAtk}  DEF:${creature.baseDef}  SPD:${creature.baseSpd}`,
       { fontSize: '10px', color: '#cccccc', fontFamily: 'monospace' }
-    ).setOrigin(0.5, 0);
+    ).setOrigin(0.5, 0).setAlpha(alpha);
 
     const abilT = this.add.text(cx + CARD_W / 2, cy + 43,
-      `\u2726 ${creature.ability.name}`,
-      { fontSize: '9px', color: '#665577', fontFamily: 'monospace' }
-    ).setOrigin(0.5, 0);
+      alreadyPicked ? '✓ IN DECK' : `\u2726 ${creature.ability.name}`,
+      { fontSize: '9px', color: alreadyPicked ? '#336633' : '#665577', fontFamily: 'monospace' }
+    ).setOrigin(0.5, 0).setAlpha(alreadyPicked ? 0.7 : 1);
 
-    const hit = this.add
-      .rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H, 0x000000, 0)
-      .setInteractive({ useHandCursor: true });
-    hit.on('pointerover', () => bg.setFillStyle(0x111133));
-    hit.on('pointerout',  () => bg.setFillStyle(0x0d0d1a));
-    hit.on('pointerdown', () => this._addToDeck(creature));
+    if (!alreadyPicked) {
+      const hit = this.add
+        .rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H, 0x000000, 0)
+        .setInteractive({ useHandCursor: true });
+      hit.on('pointerover', () => bg.setFillStyle(0x111133));
+      hit.on('pointerout',  () => bg.setFillStyle(0x0d0d1a));
+      hit.on('pointerdown', () => this._addToDeck(creature));
+      this._gridObjs.push(hit);
+    }
 
-    this._gridObjs.push(bg, gfx, nameT, statsT, abilT, hit);
+    this._gridObjs.push(bg, gfx, nameT, statsT, abilT);
   }
 
   // ── Deck management ───────────────────────────────────────────────────────
 
   _addToDeck(creature) {
     if (this._deck.length >= MAX_DECK) return;
+    // Farm creatures (have uid) can only be picked once
+    if (creature.uid && this._deck.some(d => d.uid === creature.uid)) return;
     this._deck.push(creature);
     this._refreshTray();
     this._refreshStartBtn();
     this._countText.setText(`${this._deck.length} / ${MAX_DECK} selected`);
+    // Redraw grid so the selected card dims
+    if (creature.uid) { this._clearGrid(); this._buildGrid(); }
   }
 
   _removeFromDeck(slotIdx) {
     if (slotIdx >= this._deck.length) return;
-    this._deck.splice(slotIdx, 1);
+    const removed = this._deck.splice(slotIdx, 1)[0];
     this._refreshTray();
     this._refreshStartBtn();
     this._countText.setText(`${this._deck.length} / ${MAX_DECK} selected`);
+    // Redraw grid so the card becomes selectable again
+    if (removed?.uid) { this._clearGrid(); this._buildGrid(); }
   }
 
   _refreshTray() {
@@ -325,15 +337,21 @@ export default class DeckBuilderScene extends Phaser.Scene {
       nameT.setText(item.name).setColor(ITEM_COLOR[item.type] || '#aaaaaa');
       descT.setText(item.description);
     } else {
-      bg.setFillStyle(0x080810);
-      nameT.setText('\u2014 empty \u2014').setColor('#333355');
+      bg.setFillStyle(0x111128);
+      nameT.setText('\u2014 empty \u2014').setColor('#555588');
       descT.setText('');
     }
   }
 
   _goToBattle() {
-    GameState.selectedDeck  = [...this._deck];
-    GameState.selectedItems = this._items.filter(Boolean);
-    this.scene.start('BattleScene');
+    // Farm creatures leave the farm for this run; survivors return via clearRun()
+    const farmPicks = this._deck.filter(d => d.uid);
+    GameState.deployFromFarm(farmPicks);
+    GameState.selectedDeck      = [...this._deck];
+    GameState.selectedItems     = this._items.filter(Boolean);
+    GameState.selectedArchetype = this._tab !== 'Farm' ? this._tab : (this._deck[0]?.archetype ?? 'Flying');
+    GameState.runFightWins      = 0;
+    GameState.saveGame();
+    this.scene.start('MapScene');
   }
 }

@@ -4,8 +4,9 @@ export const items = [
     id:          'nectar_vial',
     name:        'Nectar Vial',
     type:        'heal',
-    value:       8,
-    description: 'Heal 8 HP',
+    value:       30,
+    percent:     true,
+    description: 'Heal 30% HP',
   },
   {
     id:          'venom_gland',

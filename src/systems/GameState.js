@@ -13,25 +13,43 @@ class GameState {
   reset() {
     this.selectedArchetype   = null;
     this.farm                = [];        // array of plain creature data objects
+    this.hand                = [];        // creatures captured mid-run (returned to farm at run end)
     this.selectedDeck        = [];        // creature data objects chosen in DeckBuilderScene
     this.selectedItems       = [];        // item objects chosen in DeckBuilderScene (max 3)
     this.currentDeck         = [];        // array of creature ids in active deck
     this.unlockedArchetypes  = ['Flying'];
     this.currency            = 0;
     this.completedRuns       = 0;
+    this.runFightWins        = 0;         // fight wins in current run (0-3)
+    this.lootTaken           = false;     // true once loot taken this round
     this.currentHP           = {};        // { [creatureId]: number }
   }
 
   clearRun() {
+    // Surviving hand creatures (captured mid-run) go back to farm
+    for (const entry of this.hand) {
+      this.farm.push(entry);
+    }
+    this.hand              = [];
     this.selectedArchetype = null;
+    this.selectedDeck      = [];
+    this.selectedItems     = [];
     this.currentDeck       = [];
     this.currentHP         = {};
+    this.runFightWins      = 0;
+    this.lootTaken         = false;
+    this.saveGame();
+  }
+
+  _makeUid() {
+    return Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
   }
 
   /** Add a captured Creature to the persistent farm (stores plain data object). */
   addToFarm(creature) {
     const stats = creature.getStats();
     this.farm.push({
+      uid:       this._makeUid(),
       id:        creature.id,
       name:      creature.name,
       archetype: creature.archetype,
@@ -45,9 +63,113 @@ class GameState {
     this.saveGame();
   }
 
+  /**
+   * Add a captured Creature to the active run's hand.
+   * Also appends to selectedDeck so it's available in future battles this run.
+   * Surviving hand creatures are returned to farm by clearRun().
+   */
+  addToHand(creature) {
+    const stats = creature.getStats();
+    const entry = {
+      uid:       this._makeUid(),
+      id:        creature.id,
+      name:      creature.name,
+      archetype: creature.archetype,
+      ability:   creature.ability,
+      baseHp:    stats.hp,
+      baseAtk:   stats.atk,
+      baseDef:   stats.def,
+      baseSpd:   stats.spd,
+      generation: 0,
+    };
+    this.hand.push(entry);
+    this.selectedDeck.push(entry);
+    this.saveGame();
+  }
+
+  /**
+   * Move farm creatures into hand for the active run.
+   * Called from DeckBuilderScene when the player starts a battle.
+   * Creatures are removed from farm and tracked in hand; clearRun() returns survivors.
+   */
+  deployFromFarm(entries) {
+    for (const entry of entries) {
+      const fi = this.farm.findIndex(e => e.uid === entry.uid);
+      if (fi !== -1) {
+        const [removed] = this.farm.splice(fi, 1);
+        this.hand.push(removed);
+      }
+    }
+    this.saveGame();
+  }
+
+  /**
+   * Permanently remove creatures from farm and hand by uid.
+   * Called when player creatures die in battle.
+   */
+  removeDeadRunCreatures(uids) {
+    for (const uid of uids) {
+      const fi = this.farm.findIndex(e => e.uid === uid);
+      if (fi !== -1) this.farm.splice(fi, 1);
+      const hi = this.hand.findIndex(e => e.uid === uid);
+      if (hi !== -1) this.hand.splice(hi, 1);
+    }
+    this.saveGame();
+  }
+
   /** @returns {object[]} Array of farm creature data objects. */
   getFarm() {
     return this.farm;
+  }
+
+  /**
+   * Breed two hand creatures (by index in selectedDeck) during an active run.
+   * Parents are consumed from selectedDeck + hand; offspring added to both.
+   * @returns {object} The offspring's plain data entry, or null on failure.
+   */
+  breedFromHand(idx1, idx2) {
+    const e1 = this.selectedDeck[idx1];
+    const e2 = this.selectedDeck[idx2];
+    if (!e1 || !e2) return null;
+
+    const toCreature = e => new Creature({
+      id: e.id, name: e.name, archetype: e.archetype, ability: e.ability,
+      baseHp: e.baseHp, baseAtk: e.baseAtk, baseDef: e.baseDef, baseSpd: e.baseSpd,
+    }, 1);
+
+    const offspring      = Creature.breed(toCreature(e1), toCreature(e2));
+    const offspringStats = offspring.getStats();
+    const generation     = Math.max(e1.generation ?? 0, e2.generation ?? 0) + 1;
+
+    const entry = {
+      uid:        this._makeUid(),
+      id:         offspring.id,
+      name:       offspring.name,
+      archetype:  offspring.archetype,
+      ability:    offspring.ability,
+      baseHp:     offspringStats.hp,
+      baseAtk:    offspringStats.atk,
+      baseDef:    offspringStats.def,
+      baseSpd:    offspringStats.spd,
+      generation,
+    };
+
+    // Remove parents from selectedDeck (higher index first)
+    const uid1 = e1.uid;
+    const uid2 = e2.uid;
+    this.selectedDeck.splice(Math.max(idx1, idx2), 1);
+    this.selectedDeck.splice(Math.min(idx1, idx2), 1);
+
+    // Remove parents from hand by uid
+    this.hand = this.hand.filter(e => e.uid !== uid1 && e.uid !== uid2);
+
+    // Add offspring to both
+    this.selectedDeck.push(entry);
+    this.hand.push(entry);
+
+    this.saveGame();
+    console.log('[BreedFromHand]', entry);
+    return entry;
   }
 
   /**
@@ -71,6 +193,7 @@ class GameState {
     const generation     = Math.max(e1.generation ?? 0, e2.generation ?? 0) + 1;
 
     const entry = {
+      uid:       this._makeUid(),
       id:        offspring.id,
       name:      offspring.name,
       archetype: offspring.archetype,
@@ -98,10 +221,15 @@ class GameState {
     const payload = {
       selectedArchetype:  this.selectedArchetype,
       farm:               this.farm,
+      hand:               this.hand,
+      selectedDeck:       this.selectedDeck,
+      selectedItems:      this.selectedItems,
       currentDeck:        this.currentDeck,
       unlockedArchetypes: this.unlockedArchetypes,
       currency:           this.currency,
       completedRuns:      this.completedRuns,
+      runFightWins:       this.runFightWins,
+      lootTaken:          this.lootTaken,
       currentHP:          this.currentHP,
     };
     try {
@@ -119,19 +247,31 @@ class GameState {
       this.selectedArchetype  = data.selectedArchetype  ?? null;
       // Migrate old format: farm was stored as string IDs; now stored as data objects
       this.farm = (data.farm ?? []).map(entry => {
-        if (typeof entry !== 'string') return entry;   // already a proper object
-        const c = creatureData.find(cr => cr.id === entry);
-        if (!c) return null;
-        return {
-          id: c.id, name: c.name, archetype: c.archetype, ability: c.ability,
-          baseHp: c.baseHp, baseAtk: c.baseAtk, baseDef: c.baseDef, baseSpd: c.baseSpd,
-          generation: 0,
-        };
+        if (typeof entry === 'string') {
+          const c = creatureData.find(cr => cr.id === entry);
+          if (!c) return null;
+          entry = {
+            id: c.id, name: c.name, archetype: c.archetype, ability: c.ability,
+            baseHp: c.baseHp, baseAtk: c.baseAtk, baseDef: c.baseDef, baseSpd: c.baseSpd,
+            generation: 0,
+          };
+        }
+        // Backfill uid for entries from older saves
+        if (!entry.uid) entry.uid = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+        return entry;
       }).filter(Boolean);
+      this.hand               = (data.hand ?? []).map(entry => {
+        if (!entry.uid) entry.uid = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+        return entry;
+      });
+      this.selectedDeck       = data.selectedDeck       ?? [];
+      this.selectedItems      = data.selectedItems      ?? [];
       this.currentDeck        = data.currentDeck        ?? [];
       this.unlockedArchetypes = data.unlockedArchetypes ?? ['Flying'];
       this.currency           = data.currency           ?? 0;
       this.completedRuns      = data.completedRuns      ?? 0;
+      this.runFightWins       = data.runFightWins       ?? 0;
+      this.lootTaken          = data.lootTaken          ?? false;
       this.currentHP          = data.currentHP          ?? {};
       return true;
     } catch (e) {

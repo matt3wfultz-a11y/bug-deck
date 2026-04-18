@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "bug-deck",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["server.py", "3456"],
+      "port": 3456
+    }
+  ]
+}

@@ -18,14 +18,9 @@ export default class MapScene extends Phaser.Scene {
 
   create() {
     const { width, height } = this.scale;
-    const fightWins = GameState.runFightWins ?? 0;
-    const handSize  = (GameState.selectedDeck || []).length;
-
-    // Victory check — arrived here after 3rd fight win
-    if (fightWins >= 3) {
-      this._showVictory();
-      return;
-    }
+    const fightWins     = GameState.runFightWins ?? 0;
+    this._fightWins     = fightWins;
+    const handSize      = (GameState.selectedDeck || []).length;
 
     // ── Header ────────────────────────────────────────────────────────────────
     this.add.rectangle(width / 2, 0, width, 58, 0x0d0d1a).setOrigin(0.5, 0);
@@ -33,9 +28,14 @@ export default class MapScene extends Phaser.Scene {
     this.add.text(width / 2, 14, 'BATTLE MAP', {
       fontSize: '20px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5);
-    this.add.text(width - 16, 14, `Round ${fightWins + 1}/3`, {
+    this.add.text(width - 16, 14, `Round ${fightWins + 1}`, {
       fontSize: '16px', color: '#ffdd44', fontFamily: 'monospace',
     }).setOrigin(1, 0.5);
+    const enemyLevel = fightWins + 1;
+    const diffColor  = enemyLevel <= 3 ? '#88cc88' : enemyLevel <= 7 ? '#ffdd44' : '#ff6644';
+    this.add.text(16, 14, `Enemy Lv.${enemyLevel}`, {
+      fontSize: '13px', color: diffColor, fontFamily: 'monospace',
+    }).setOrigin(0, 0.5);
     this.add.text(width / 2, 42, 'Choose your next encounter:', {
       fontSize: '12px', color: '#555577', fontFamily: 'monospace',
     }).setOrigin(0.5);
@@ -63,15 +63,34 @@ export default class MapScene extends Phaser.Scene {
       backgroundColor: '#0a0a1a', padding: { x: 6, y: 4 },
     }).setInteractive({ useHandCursor: true })
       .on('pointerdown', () => { GameState.clearRun(); this.scene.start('MenuScene'); });
+
+    // ── Leave safely (only available after at least 1 win) ────────────────────
+    if (fightWins > 0) {
+      const deck      = GameState.selectedDeck || [];
+      const survivors = deck.length;
+      const leaveBtn  = this.add.text(width - 16, 577,
+        `[ LEAVE SAFELY  \u2605 ${survivors} bug${survivors !== 1 ? 's' : ''} saved ]`, {
+          fontSize: '13px', color: '#a8ff78', fontFamily: 'monospace',
+          backgroundColor: '#0a1a0a', padding: { x: 8, y: 4 },
+        }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
+      leaveBtn.on('pointerover', () => leaveBtn.setScale(1.04));
+      leaveBtn.on('pointerout',  () => leaveBtn.setScale(1));
+      leaveBtn.on('pointerdown', () => {
+        GameState.completedRuns = (GameState.completedRuns || 0) + 1;
+        GameState.clearRun();
+        this.scene.start('MenuScene');
+      });
+    }
   }
 
   _buildNodeCard(i, type) {
-    const handSize = (GameState.selectedDeck || []).length;
+    const handSize  = (GameState.selectedDeck || []).length;
+    const fightWins = this._fightWins ?? 0;
     const configs = {
       Fight: {
         label:       '\u2694  FIGHT',
         sublabel:    'Battle an enemy crew',
-        tag:         'Counts toward run progress',
+        tag:         `Enemy Lv.${fightWins + 1} \u2014 harder each round`,
         color:       '#ff9966',
         borderColor: 0x993322,
         bgColor:     0x120806,

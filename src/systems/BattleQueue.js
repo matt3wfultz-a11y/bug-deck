@@ -11,24 +11,23 @@ export default class BattleQueue {
     return 3; // Ground and Water
   }
 
-  queueAction(type, payload = null) {
-    if (this.currentStamina < 1) return false;
-    this.queue.push({ type, payload });
-    this.currentStamina--;
+  queueAction(type, payload = null, cost = 1) {
+    if (this.currentStamina < cost) return false;
+    this.queue.push({ type, payload, cost });
+    this.currentStamina -= cost;
     return true;
   }
 
-  canAfford()  { return this.currentStamina >= 1; }
-  get()        { return [...this.queue]; }
-  isEmpty()    { return this.queue.length === 0; }
-  clear()      { this.queue = []; }
-  regen()      { this.currentStamina = this.maxStamina; }
+  canAfford(cost = 1) { return this.currentStamina >= cost; }
+  get()               { return [...this.queue]; }
+  isEmpty()           { return this.queue.length === 0; }
+  clear()             { this.queue = []; }
+  regen()             { this.currentStamina = this.maxStamina; }
 
   getStaminaDots() {
     return Array.from({ length: this.maxStamina }, (_, i) => i < this.currentStamina);
   }
 
-  // Actions that fire before the swap
   actionsBeforeSwap() {
     const si = this.queue.findIndex(a => a.type === 'SWAP');
     return si === -1 ? [...this.queue] : this.queue.slice(0, si);

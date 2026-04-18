@@ -88,14 +88,17 @@ export default class DeckBuilderScene extends Phaser.Scene {
       const gfx   = this.add.graphics();
       gfx.lineStyle(1, 0x222244, 1);
       gfx.strokeRect(sx, sy, SLOT_W, SLOT_H);
-      const nameT = this.add.text(sx + SLOT_W / 2, sy + 10, '', {
+      const nameT = this.add.text(sx + SLOT_W / 2, sy + 8, '', {
         fontSize: '11px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
       }).setOrigin(0.5, 0);
-      const statT = this.add.text(sx + SLOT_W / 2, sy + 28, '', {
+      const statT = this.add.text(sx + SLOT_W / 2, sy + 24, '', {
         fontSize: '9px', color: '#888888', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
-      const archT = this.add.text(sx + SLOT_W / 2, sy + 42, '', {
+      const archT = this.add.text(sx + SLOT_W / 2, sy + 38, '', {
         fontSize: '9px', color: '#555577', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0);
+      const specT = this.add.text(sx + SLOT_W / 2, sy + 52, '', {
+        fontSize: '8px', color: '#884488', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
 
       const hit = this.add
@@ -103,7 +106,7 @@ export default class DeckBuilderScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       hit.on('pointerdown', () => this._removeFromDeck(i));
 
-      this._slotObjs.push({ bg, gfx, nameT, statT, archT, hit });
+      this._slotObjs.push({ bg, gfx, nameT, statT, archT, specT, hit });
     }
 
     // ── Item tray ──────────────────────────────────────────────────────────────
@@ -172,7 +175,7 @@ export default class DeckBuilderScene extends Phaser.Scene {
     return creatureData
       .filter(c => c.archetype === this._tab)
       .map(c => ({
-        id: c.id, name: c.name, archetype: c.archetype, ability: c.ability,
+        id: c.id, name: c.name, archetype: c.archetype, ability: c.ability, special: c.special,
         baseHp: c.baseHp, baseAtk: c.baseAtk, baseDef: c.baseDef, baseSpd: c.baseSpd,
       }));
   }
@@ -249,6 +252,13 @@ export default class DeckBuilderScene extends Phaser.Scene {
       { fontSize: '9px', color: alreadyPicked ? '#336633' : '#665577', fontFamily: 'monospace' }
     ).setOrigin(0.5, 0).setAlpha(alreadyPicked ? 0.7 : 1);
 
+    const sp     = creature.special;
+    const spT    = this.add.text(cx + CARD_W / 2, cy + 57,
+      sp ? `\u26a1 ${sp.name}` : '',
+      { fontSize: '8px', color: '#884488', fontFamily: 'monospace' }
+    ).setOrigin(0.5, 0).setAlpha(alreadyPicked ? 0.4 : 0.85);
+    this._gridObjs.push(spT);
+
     if (!alreadyPicked) {
       const hit = this.add
         .rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H, 0x000000, 0)
@@ -287,7 +297,7 @@ export default class DeckBuilderScene extends Phaser.Scene {
   }
 
   _refreshTray() {
-    this._slotObjs.forEach(({ bg, nameT, statT, archT }, i) => {
+    this._slotObjs.forEach(({ bg, nameT, statT, archT, specT }, i) => {
       const c = this._deck[i];
       if (c) {
         bg.setFillStyle(0x111122);
@@ -296,12 +306,14 @@ export default class DeckBuilderScene extends Phaser.Scene {
         statT.setText(`HP:${c.baseHp}  ATK:${c.baseAtk}  DEF:${c.baseDef}`);
         archT.setText(`[${c.archetype}]`);
         archT.setColor(ARCH_COLOR[c.archetype] || '#888888');
+        specT.setText(c.special ? `\u26a1 ${c.special.name}` : '');
       } else {
         bg.setFillStyle(0x080810);
         nameT.setText('\u2014 empty \u2014');
         nameT.setColor('#333355');
         statT.setText('');
         archT.setText('');
+        specT.setText('');
       }
     });
   }

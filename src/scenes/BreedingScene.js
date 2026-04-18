@@ -120,6 +120,14 @@ export default class BreedingScene extends Phaser.Scene {
       { fontSize: '9px', color: '#665577', fontFamily: 'monospace' }
     ).setOrigin(0.5, 0);
 
+    // Special attack
+    const sp      = creature.special;
+    const spText  = this.add.text(cx + CARD_W / 2, cy + 72,
+      sp ? `\u26a1 ${sp.name}  [${sp.element}]` : '',
+      { fontSize: '8px', color: '#aa44aa', fontFamily: 'monospace' }
+    ).setOrigin(0.5, 0);
+    this._cards.push(spText);
+
     // Generation badge
     const gen = creature.generation ?? 0;
     if (gen > 0) {

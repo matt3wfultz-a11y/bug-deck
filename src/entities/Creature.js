@@ -1,4 +1,4 @@
-import { creatures as creatureData } from '../data/creatures.js';
+import { creatures as creatureData, SPECIAL_POOLS } from '../data/creatures.js';
 
 // Syllable pools by archetype
 const SYLLABLES = {
@@ -21,6 +21,7 @@ export default class Creature {
     this.name      = data.name;
     this.archetype = data.archetype;
     this.ability   = data.ability;
+    this.special   = data.special ?? null;
     this.level     = level;
     this.parentIds = parentIds;
     // Base stats stored for scaling
@@ -83,42 +84,47 @@ export default class Creature {
 
   /**
    * Breed two Creature instances to produce an offspring.
-   * - Stats: average of parents ±10% random variance (floored, min 1)
+   * - Stats: average of parents * 1.05^generation, capped at 100
    * - Archetype: randomly chosen from one of the two parents
    * - Name: random abstract name hinting at parent archetypes
    * - Ability: from random template of chosen archetype
+   * - Special: randomly mutated from the archetype's special pool
    * - parentIds set to [p1.id, p2.id]
    *
    * @param {Creature} p1
    * @param {Creature} p2
+   * @param {number} generation
    * @returns {Creature}
    */
-  static breed(p1, p2) {
-    const p1s = p1.getStats();
-    const p2s = p2.getStats();
+  static breed(p1, p2, generation = 1) {
+    const p1s   = p1.getStats();
+    const p2s   = p2.getStats();
     const avg = (a, b) => (a + b) / 2;
-    const vary = v => Math.max(1, Math.floor(v * (0.9 + Math.random() * 0.2)));
+    const cap = v => Math.min(100, Math.max(1, Math.floor(v) + generation));
 
     // Pick archetype from one parent at random
     const archetype = Math.random() < 0.5 ? p1.archetype : p2.archetype;
 
-    // Pick a random template from that archetype
-    const pool = creatureData.filter(c => c.archetype === archetype);
+    // Pick a random template from that archetype (for id/ability)
+    const pool     = creatureData.filter(c => c.archetype === archetype);
     const template = pool[Math.floor(Math.random() * pool.length)];
 
-    // Generate offspring name from parent archetypes
+    // Randomly mutate special from the archetype's pool
+    const spPool  = SPECIAL_POOLS[archetype] ?? [];
+    const special = spPool.length > 0 ? spPool[Math.floor(Math.random() * spPool.length)] : null;
+
     const offspringName = Creature.generateName(p1.archetype, p2.archetype);
 
-    // Build a synthetic data object with averaged stats
     const offspringData = {
       id:        template.id,
       name:      offspringName,
       archetype: template.archetype,
       ability:   template.ability,
-      baseHp:  vary(avg(p1s.hp,  p2s.hp)),
-      baseAtk: vary(avg(p1s.atk, p2s.atk)),
-      baseDef: vary(avg(p1s.def, p2s.def)),
-      baseSpd: vary(avg(p1s.spd, p2s.spd)),
+      special,
+      baseHp:  cap(avg(p1s.hp,  p2s.hp)),
+      baseAtk: cap(avg(p1s.atk, p2s.atk)),
+      baseDef: cap(avg(p1s.def, p2s.def)),
+      baseSpd: cap(avg(p1s.spd, p2s.spd)),
     };
 
     return new Creature(offspringData, 1, [p1.id, p2.id]);

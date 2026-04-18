@@ -31,8 +31,10 @@ export default class BattleScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
 
-    const archetype = GameState.selectedArchetype || 'Flying';
-    const enemyArch = ALL_ARCHETYPES[Math.floor(Math.random() * ALL_ARCHETYPES.length)];
+    const archetype   = GameState.selectedArchetype || 'Flying';
+    const enemyArch   = ALL_ARCHETYPES[Math.floor(Math.random() * ALL_ARCHETYPES.length)];
+    const currentRound = (GameState.runFightWins ?? 0) + 1;
+    const enemyLevel   = currentRound;
 
     const buildFallback = arch => {
       const pool = creatureData.filter(c => c.archetype === arch);
@@ -46,10 +48,20 @@ export default class BattleScene extends Phaser.Scene {
       ? deckData.map(d => { const c = new Creature(d, 1); c._farmUid = d.uid || null; return c; })
       : buildFallback(archetype);
 
-    const enemyPool = creatureData.filter(c => c.archetype === enemyArch);
-    const enemyDeck = Array.from({ length: 5 }, () =>
-      new Creature(enemyPool[Math.floor(Math.random() * enemyPool.length)], 1)
-    );
+    const enemyPool    = creatureData.filter(c => c.archetype === enemyArch);
+    const scaleFactor  = 1 + (currentRound - 1) * 0.20; // +20% per round
+    const enemyDeck = Array.from({ length: 5 }, () => {
+      const tmpl = enemyPool[Math.floor(Math.random() * enemyPool.length)];
+      const scaled = {
+        ...tmpl,
+        baseHp:  Math.round(tmpl.baseHp  * scaleFactor),
+        baseAtk: Math.round(tmpl.baseAtk * scaleFactor),
+        baseDef: Math.round(tmpl.baseDef * scaleFactor),
+        baseSpd: Math.round(tmpl.baseSpd * scaleFactor),
+      };
+      return new Creature(scaled, 1);
+    });
+    this._currentRound = currentRound;
 
     const playerItems = [...(GameState.selectedItems || [])];
 
@@ -71,6 +83,9 @@ export default class BattleScene extends Phaser.Scene {
     this.add.text(width / 2, 16, 'BATTLE', {
       fontSize: '20px', color: '#ff6b6b', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5);
+    this.add.text(width - 14, 16, `Round ${currentRound}`, {
+      fontSize: '13px', color: '#ffdd44', fontFamily: 'monospace',
+    }).setOrigin(1, 0.5);
 
     // ── Deck counters ──────────────────────────────────────────────────────────
     this._playerDeckText = this.add.text(16, 38, '', {
@@ -165,10 +180,11 @@ export default class BattleScene extends Phaser.Scene {
     // ── Action buttons ────────────────────────────────────────────────────────
     const btnY    = 302;
     const btnDefs = [
-      { key: 'ATK',    label: '[ ATK ]',    x: width / 2 - 248, color: '#ff9966' },
-      { key: 'DEFEND', label: '[ DEFEND ]', x: width / 2 - 110, color: '#66aaff' },
-      { key: 'ITEM',   label: '[ ITEM ]',   x: width / 2 + 22,  color: '#ffdd44' },
-      { key: 'SWAP',   label: '[ SWAP ]',   x: width / 2 + 148, color: '#cc88ff' },
+      { key: 'ATK',     label: '[ATK]',    x: width / 2 - 278, color: '#ff9966' },
+      { key: 'DEFEND',  label: '[DEF]',    x: width / 2 - 178, color: '#66aaff' },
+      { key: 'SPECIAL', label: '[SPEC!]',  x: width / 2 - 70,  color: '#ff44cc' },
+      { key: 'ITEM',    label: '[ITEM]',   x: width / 2 + 40,  color: '#ffdd44' },
+      { key: 'SWAP',    label: '[SWAP]',   x: width / 2 + 148, color: '#cc88ff' },
     ];
     this._buttons = {};
     btnDefs.forEach(({ key, label, x, color }) => {
@@ -183,7 +199,7 @@ export default class BattleScene extends Phaser.Scene {
     });
 
     // END TURN button
-    this._endTurnBtn = this.add.text(width / 2 + 286, btnY, '[ END ]', {
+    this._endTurnBtn = this.add.text(width / 2 + 256, btnY, '[END]', {
       fontSize: '17px', color: '#a8ff78', fontFamily: 'monospace',
       backgroundColor: '#141428', padding: { x: 8, y: 5 },
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
@@ -191,8 +207,12 @@ export default class BattleScene extends Phaser.Scene {
     this._endTurnBtn.on('pointerout',  () => this._endTurnBtn.setScale(1));
     this._endTurnBtn.on('pointerdown', () => { if (!this._endTurnBtn.getData('disabled')) this._onEndTurn(); });
 
-    this._itemLabel = this.add.text(width / 2 + 22, 330, '', {
+    this._itemLabel = this.add.text(width / 2 + 40, 330, '', {
       fontSize: '9px', color: '#888888', fontFamily: 'monospace',
+    }).setOrigin(0.5);
+
+    this._specialLabel = this.add.text(width / 2 - 70, 330, '', {
+      fontSize: '9px', color: '#aa2288', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
     // ── Deploy / swap banner ──────────────────────────────────────────────────
@@ -247,6 +267,11 @@ export default class BattleScene extends Phaser.Scene {
       return;
     }
 
+    if (key === 'SPECIAL') {
+      this._openSpecialMenu();
+      return;
+    }
+
     const ok = this._playerQueue.queueAction(key);
     if (!ok) return;
 
@@ -287,11 +312,18 @@ export default class BattleScene extends Phaser.Scene {
     const eRatio = enemy.currentHP / enemy.getStats().hp;
     const max    = this._enemyQueue.maxStamina;
 
+    const hasAdvantage  = ADVANTAGE[enemy.archetype] === player.archetype;
+    const round         = this._currentRound ?? 1;
+    // Enemies defend less and use Specials more as rounds increase
+    const defendThresh  = Math.max(0.15, 0.4 - round * 0.025);
+    const specialChance = Math.min(0.85, 0.35 + round * 0.05);
+
     for (let i = 0; i < max; i++) {
       if (!this._enemyQueue.canAfford()) break;
-      // Defend in first slot when low HP, otherwise attack
-      if (eRatio < 0.4 && i === 0) {
+      if (eRatio < defendThresh && i === 0) {
         this._enemyQueue.queueAction('DEFEND');
+      } else if (this._enemyQueue.canAfford(2) && Math.random() < specialChance) {
+        this._enemyQueue.queueAction('SPECIAL', null, 2);
       } else {
         this._enemyQueue.queueAction('ATK');
       }
@@ -351,11 +383,13 @@ export default class BattleScene extends Phaser.Scene {
 
     // ── Compute damage for both sides simultaneously ───────────────────────────
     player = sys.playerHand[0]; // refresh after possible swap
-    const pIsAtk  = pAct?.type === 'ATK'    && player?.isAlive() && enemy?.isAlive();
-    const pIsDef  = pAct?.type === 'DEFEND' && player?.isAlive();
-    const pIsItem = pAct?.type === 'ITEM'   && player?.isAlive();
-    const eIsAtk  = eAct?.type === 'ATK'    && enemy?.isAlive()  && player?.isAlive();
-    const eIsDef  = eAct?.type === 'DEFEND' && enemy?.isAlive();
+    const pIsAtk     = pAct?.type === 'ATK'     && player?.isAlive() && enemy?.isAlive();
+    const pIsSpecial = pAct?.type === 'SPECIAL'  && player?.isAlive() && enemy?.isAlive();
+    const pIsDef     = pAct?.type === 'DEFEND'  && player?.isAlive();
+    const pIsItem    = pAct?.type === 'ITEM'    && player?.isAlive();
+    const eIsAtk     = eAct?.type === 'ATK'     && enemy?.isAlive()  && player?.isAlive();
+    const eIsSpecial = eAct?.type === 'SPECIAL'  && enemy?.isAlive()  && player?.isAlive();
+    const eIsDef     = eAct?.type === 'DEFEND'  && enemy?.isAlive();
 
     let playerDmg = 0; // damage dealt TO enemy
     let enemyDmg  = 0; // damage dealt TO player
@@ -368,11 +402,21 @@ export default class BattleScene extends Phaser.Scene {
       if (eIsDef) playerDmg = Math.max(1, Math.ceil(playerDmg * DEFEND_RATIO));
     }
 
+    if (pIsSpecial) {
+      playerDmg = sys._calcSpecialDmg(player, enemy);
+      if (eIsDef) playerDmg = Math.max(1, Math.ceil(playerDmg * DEFEND_RATIO));
+    }
+
     if (eIsAtk) {
       const aStats = enemy.getStats();
       const dStats = player.getStats();
       const adv    = ADVANTAGE[enemy.archetype] === player.archetype ? 1.5 : 1;
       enemyDmg = Math.max(1, Math.ceil((aStats.atk - dStats.def) * adv));
+      if (pIsDef) enemyDmg = Math.max(1, Math.ceil(enemyDmg * DEFEND_RATIO));
+    }
+
+    if (eIsSpecial) {
+      enemyDmg = sys._calcSpecialDmg(enemy, player);
       if (pIsDef) enemyDmg = Math.max(1, Math.ceil(enemyDmg * DEFEND_RATIO));
     }
 
@@ -391,17 +435,21 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     // ── Log ───────────────────────────────────────────────────────────────────
-    const advTagP = (pIsAtk && ADVANTAGE[player.archetype] === enemy.archetype)  ? ' [ADV]' : '';
-    const advTagE = (eIsAtk && ADVANTAGE[enemy.archetype]  === player.archetype) ? ' [ADV]' : '';
+    const advTagP  = (pIsAtk    && ADVANTAGE[player.archetype] === enemy.archetype)  ? ' [ADV]'   : '';
+    const superTagP = (pIsSpecial && ADVANTAGE[player.archetype] === enemy.archetype)  ? ' [SUPER]' : '';
+    const advTagE  = (eIsAtk    && ADVANTAGE[enemy.archetype]  === player.archetype) ? ' [ADV]'   : '';
+    const superTagE = (eIsSpecial && ADVANTAGE[enemy.archetype]  === player.archetype) ? ' [SUPER]' : '';
 
-    if (pIsAtk) sys._log(`${player.name} hits ${enemy.name} for ${playerDmg}${eIsDef ? ' [DEF]' : ''}${advTagP}.`);
-    if (eIsAtk) sys._log(`${enemy.name} hits ${player.name} for ${enemyDmg}${pIsDef ? ' [DEF]' : ''}${advTagE}.`);
-    if (pIsDef && !eIsAtk) sys._log(`${player.name} defends.`);
-    if (eIsDef && !pIsAtk) sys._log(`${enemy.name} defends.`);
+    if (pIsAtk)     sys._log(`${player.name} hits ${enemy.name} for ${playerDmg}${eIsDef ? ' [DEF]' : ''}${advTagP}.`);
+    if (pIsSpecial) sys._log(`${player.name} uses ${player.special?.name ?? 'Special'}! ${playerDmg} dmg${eIsDef ? ' [DEF]' : ''}${superTagP}.`);
+    if (eIsAtk)     sys._log(`${enemy.name} hits ${player.name} for ${enemyDmg}${pIsDef ? ' [DEF]' : ''}${advTagE}.`);
+    if (eIsSpecial) sys._log(`${enemy.name} uses ${enemy.special?.name ?? 'Special'}! ${enemyDmg} dmg${pIsDef ? ' [DEF]' : ''}${superTagE}.`);
+    if (pIsDef && !eIsAtk && !eIsSpecial) sys._log(`${player.name} defends.`);
+    if (eIsDef && !pIsAtk && !pIsSpecial) sys._log(`${enemy.name} defends.`);
 
     // ── Animate both at the same time ─────────────────────────────────────────
-    const needsPlayerAnim = pIsAtk;
-    const needsEnemyAnim  = eIsAtk;
+    const needsPlayerAnim = pIsAtk || pIsSpecial;
+    const needsEnemyAnim  = eIsAtk || eIsSpecial;
 
     if (!needsPlayerAnim && !needsEnemyAnim) {
       this._refreshUI();
@@ -496,22 +544,25 @@ export default class BattleScene extends Phaser.Scene {
   _updateQueueText() {
     const q = this._playerQueue.get();
     if (q.length === 0) { this._queueText.setText(''); return; }
-    const labels = { ATK: 'ATK', DEFEND: 'DEF', ITEM: 'ITEM', SWAP: 'SWAP' };
+    const labels = { ATK: 'ATK', DEFEND: 'DEF', SPECIAL: 'SP!', ITEM: 'ITEM', SWAP: 'SWAP' };
     this._queueText.setText('Queue: ' + q.map(a => labels[a.type] || a.type).join(' \u203a '));
   }
 
   // ── Button state ──────────────────────────────────────────────────────────
 
   _setQueueButtons(enabled) {
-    const sys     = this.battleSystem;
-    const afford  = enabled && this._playerQueue.canAfford();
-    const hasItem = sys.playerItems.length > 0;
-    const canSwap = this._deckRoster.filter(c => c.isAlive()).length > 1;
+    const sys           = this.battleSystem;
+    const afford1       = enabled && this._playerQueue.canAfford(1);
+    const afford2       = enabled && this._playerQueue.canAfford(2);
+    const hasItem       = sys.playerItems.length > 0;
+    const canSwap       = this._deckRoster.filter(c => c.isAlive()).length > 1;
 
     Object.entries(this._buttons).forEach(([key, btn]) => {
-      const dis = !afford
-        || (key === 'ITEM' && !hasItem)
-        || (key === 'SWAP' && !canSwap);
+      let dis = false;
+      if (key === 'SPECIAL') dis = !afford2;
+      else if (!afford1)     dis = true;
+      else if (key === 'ITEM' && !hasItem) dis = true;
+      else if (key === 'SWAP' && !canSwap) dis = true;
       btn.setData('disabled', dis).setAlpha(dis ? 0.35 : 1);
     });
 
@@ -582,6 +633,79 @@ export default class BattleScene extends Phaser.Scene {
         if (ok) { this._refreshStaminaDots(); this._updateQueueText(); }
         this._setQueueButtons(true);
       });
+    });
+  }
+
+  // ── Special attack menu ───────────────────────────────────────────────────
+
+  _openSpecialMenu() {
+    const { width, height } = this.scale;
+    const creature = this.battleSystem.playerHand[0];
+    if (!creature) return;
+    // Fall back to creatureData lookup if Creature constructor ran without the special field
+    const sp = creature.special
+      ?? creatureData.find(c => c.id === creature.id)?.special
+      ?? null;
+    if (!sp) return;
+
+    const objs      = [];
+    const closeMenu = () => objs.forEach(o => o.destroy());
+
+    const backdrop = this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.72)
+      .setDepth(50).setInteractive();
+    objs.push(backdrop);
+    backdrop.on('pointerdown', () => { closeMenu(); this._setQueueButtons(true); });
+
+    const PANEL_W = 340;
+    const ITEM_H  = 62;
+    const PAD_TOP = 46;
+    const PAD_BOT = 14;
+    const panelH  = PAD_TOP + ITEM_H + PAD_BOT;
+    const panelY  = height / 2 - panelH / 2;
+
+    objs.push(this.add.rectangle(width / 2, height / 2, PANEL_W, panelH, 0x110d1a).setDepth(51));
+
+    const gfx = this.add.graphics().setDepth(51);
+    gfx.lineStyle(2, 0xcc22aa, 1);
+    gfx.strokeRect(width / 2 - PANEL_W / 2, panelY, PANEL_W, panelH);
+    objs.push(gfx);
+
+    objs.push(this.add.text(width / 2, panelY + 14, 'SPECIAL ATTACK  [2 stamina]', {
+      fontSize: '14px', color: '#ff44cc', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5, 0).setDepth(52));
+
+    objs.push(this.add.text(width / 2, panelY + panelH - 10, 'Click outside to cancel', {
+      fontSize: '10px', color: '#332233', fontFamily: 'monospace',
+    }).setOrigin(0.5, 1).setDepth(52));
+
+    const iW    = PANEL_W - 20;
+    const iy    = panelY + PAD_TOP;
+    const itemBg = this.add.rectangle(width / 2, iy + (ITEM_H - 6) / 2, iW, ITEM_H - 6, 0x1a0d22).setDepth(52);
+    objs.push(itemBg);
+
+    const elementColors = { Wind: '#aaddff', Lightning: '#ffff44', Earth: '#cc9944', Tide: '#44aaff' };
+    const elColor = elementColors[sp.element] || '#ff44cc';
+
+    objs.push(this.add.text(width / 2 - iW / 2 + 6, iy + 5, sp.name, {
+      fontSize: '14px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0, 0).setDepth(53));
+
+    objs.push(this.add.text(width / 2 - iW / 2 + 6, iy + 22, `[${sp.element}]  ${sp.desc}`, {
+      fontSize: '10px', color: elColor, fontFamily: 'monospace',
+      wordWrap: { width: iW - 12 },
+    }).setOrigin(0, 0).setDepth(53));
+
+    const hit = this.add.rectangle(width / 2, iy + (ITEM_H - 6) / 2, iW, ITEM_H - 6, 0x000000, 0)
+      .setDepth(54).setInteractive({ useHandCursor: true });
+    objs.push(hit);
+
+    hit.on('pointerover', () => itemBg.setFillStyle(0x2a1a3a));
+    hit.on('pointerout',  () => itemBg.setFillStyle(0x1a0d22));
+    hit.on('pointerdown', () => {
+      closeMenu();
+      const ok = this._playerQueue.queueAction('SPECIAL', null, 2);
+      if (ok) { this._refreshStaminaDots(); this._updateQueueText(); }
+      this._setQueueButtons(true);
     });
   }
 
@@ -785,6 +909,12 @@ export default class BattleScene extends Phaser.Scene {
         ? `${sys.playerItems[0].name}${itemCount > 1 ? ` (${itemCount})` : ''}`
         : '(empty)'
     );
+
+    const activePlayer = sys.playerHand.find(c => c.isAlive());
+    const spName = activePlayer
+      ? (activePlayer.special?.name ?? creatureData.find(c => c.id === activePlayer.id)?.special?.name ?? '')
+      : '';
+    this._specialLabel.setText(spName);
 
     this._refreshHandUI();
   }

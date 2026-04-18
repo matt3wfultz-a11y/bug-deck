@@ -28,7 +28,7 @@ class GameState {
   clearRun() {
     // Surviving hand creatures (captured mid-run) go back to farm
     for (const entry of this.hand) {
-      this.farm.push(entry);
+      if (this.farm.length < 20) this.farm.push(entry);
     }
     this.hand              = [];
     this.selectedArchetype = null;
@@ -47,17 +47,19 @@ class GameState {
 
   /** Add a captured Creature to the persistent farm (stores plain data object). */
   addToFarm(creature) {
+    if (this.farm.length >= 20) return false;
     const stats = creature.getStats();
     this.farm.push({
-      uid:       this._makeUid(),
-      id:        creature.id,
-      name:      creature.name,
-      archetype: creature.archetype,
-      ability:   creature.ability,
-      baseHp:    stats.hp,
-      baseAtk:   stats.atk,
-      baseDef:   stats.def,
-      baseSpd:   stats.spd,
+      uid:        this._makeUid(),
+      id:         creature.id,
+      name:       creature.name,
+      archetype:  creature.archetype,
+      ability:    creature.ability,
+      special:    creature.special ?? null,
+      baseHp:     stats.hp,
+      baseAtk:    stats.atk,
+      baseDef:    stats.def,
+      baseSpd:    stats.spd,
       generation: 0,
     });
     this.saveGame();
@@ -71,15 +73,16 @@ class GameState {
   addToHand(creature) {
     const stats = creature.getStats();
     const entry = {
-      uid:       this._makeUid(),
-      id:        creature.id,
-      name:      creature.name,
-      archetype: creature.archetype,
-      ability:   creature.ability,
-      baseHp:    stats.hp,
-      baseAtk:   stats.atk,
-      baseDef:   stats.def,
-      baseSpd:   stats.spd,
+      uid:        this._makeUid(),
+      id:         creature.id,
+      name:       creature.name,
+      archetype:  creature.archetype,
+      ability:    creature.ability,
+      special:    creature.special ?? null,
+      baseHp:     stats.hp,
+      baseAtk:    stats.atk,
+      baseDef:    stats.def,
+      baseSpd:    stats.spd,
       generation: 0,
     };
     this.hand.push(entry);
@@ -137,9 +140,9 @@ class GameState {
       baseHp: e.baseHp, baseAtk: e.baseAtk, baseDef: e.baseDef, baseSpd: e.baseSpd,
     }, 1);
 
-    const offspring      = Creature.breed(toCreature(e1), toCreature(e2));
-    const offspringStats = offspring.getStats();
     const generation     = Math.max(e1.generation ?? 0, e2.generation ?? 0) + 1;
+    const offspring      = Creature.breed(toCreature(e1), toCreature(e2), generation);
+    const offspringStats = offspring.getStats();
 
     const entry = {
       uid:        this._makeUid(),
@@ -147,6 +150,7 @@ class GameState {
       name:       offspring.name,
       archetype:  offspring.archetype,
       ability:    offspring.ability,
+      special:    offspring.special,
       baseHp:     offspringStats.hp,
       baseAtk:    offspringStats.atk,
       baseDef:    offspringStats.def,
@@ -188,9 +192,9 @@ class GameState {
       baseHp: e.baseHp, baseAtk: e.baseAtk, baseDef: e.baseDef, baseSpd: e.baseSpd,
     }, 1);
 
-    const offspring      = Creature.breed(toCreature(e1), toCreature(e2));
-    const offspringStats = offspring.getStats();
     const generation     = Math.max(e1.generation ?? 0, e2.generation ?? 0) + 1;
+    const offspring      = Creature.breed(toCreature(e1), toCreature(e2), generation);
+    const offspringStats = offspring.getStats();
 
     const entry = {
       uid:       this._makeUid(),
@@ -198,6 +202,7 @@ class GameState {
       name:      offspring.name,
       archetype: offspring.archetype,
       ability:   offspring.ability,
+      special:   offspring.special,
       baseHp:    offspringStats.hp,
       baseAtk:   offspringStats.atk,
       baseDef:   offspringStats.def,
@@ -256,12 +261,14 @@ class GameState {
             generation: 0,
           };
         }
-        // Backfill uid for entries from older saves
+        // Backfill uid and special for entries from older saves
         if (!entry.uid) entry.uid = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+        if (!entry.special) entry.special = creatureData.find(cr => cr.id === entry.id)?.special ?? null;
         return entry;
       }).filter(Boolean);
       this.hand               = (data.hand ?? []).map(entry => {
         if (!entry.uid) entry.uid = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+        if (!entry.special) entry.special = creatureData.find(cr => cr.id === entry.id)?.special ?? null;
         return entry;
       });
       this.selectedDeck       = data.selectedDeck       ?? [];

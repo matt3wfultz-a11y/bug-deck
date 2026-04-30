@@ -25,11 +25,6 @@ const ITEM_SLOT_GAP = 8;
 const ITEM_X0       = 122;
 const ITEM_Y        = 490;
 
-const BASIC_ITEMS = [
-  { id: 'nectar_vial',  name: 'Nectar Vial',  type: 'heal',    value: 30, percent: true, description: 'Heal 30% HP'  },
-  { id: 'venom_gland',  name: 'Venom Gland',  type: 'atkBuff', value: 1,                 description: 'ATK +1'       },
-  { id: 'chitin_shard', name: 'Chitin Shard', type: 'defBuff', value: 1,                 description: 'DEF +1'       },
-];
 const ITEM_COLOR = { heal: '#88ff88', atkBuff: '#ff9966', defBuff: '#66aaff' };
 const ITEM_BG    = { heal: 0x091509,  atkBuff: 0x150909,  defBuff: 0x090915 };
 
@@ -111,7 +106,7 @@ export default class DeckBuilderScene extends Phaser.Scene {
 
     // ── Item tray ──────────────────────────────────────────────────────────────
     this.add.rectangle(width / 2, ITEM_Y + ITEM_SLOT_H / 2 + 12, width, ITEM_SLOT_H + 30, 0x0c0c1e).setOrigin(0.5);
-    this.add.text(width / 2, ITEM_Y - 14, 'ITEMS  (click to cycle: empty \u2192 Heal \u2192 ATK+ \u2192 DEF+)', {
+    this.add.text(width / 2, ITEM_Y - 14, 'ITEMS  (click to cycle owned items \u2014 buy more in Shop)', {
       fontSize: '10px', color: '#6666aa', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
@@ -131,7 +126,7 @@ export default class DeckBuilderScene extends Phaser.Scene {
       const descT = this.add.text(sx + ITEM_SLOT_W / 2, sy + 25, '', {
         fontSize: '9px', color: '#aaaacc', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
-      const hintT = this.add.text(sx + ITEM_SLOT_W / 2, sy + 36, '\u21bb click to cycle', {
+      const hintT = this.add.text(sx + ITEM_SLOT_W / 2, sy + 36, '', {
         fontSize: '8px', color: '#555588', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
 
@@ -327,12 +322,14 @@ export default class DeckBuilderScene extends Phaser.Scene {
   // ── Item management ───────────────────────────────────────────────────────
 
   _cycleItem(slotIdx) {
+    const owned = GameState.itemInventory;
+    if (owned.length === 0) return;
     const cur = this._items[slotIdx];
     if (cur === null) {
-      this._items[slotIdx] = BASIC_ITEMS[0];
+      this._items[slotIdx] = owned[0];
     } else {
-      const idx = BASIC_ITEMS.findIndex(it => it.id === cur.id);
-      this._items[slotIdx] = idx < BASIC_ITEMS.length - 1 ? BASIC_ITEMS[idx + 1] : null;
+      const idx = owned.findIndex(it => it.id === cur.id);
+      this._items[slotIdx] = idx < owned.length - 1 ? owned[idx + 1] : null;
     }
     this._refreshItemTray();
   }
@@ -342,16 +339,24 @@ export default class DeckBuilderScene extends Phaser.Scene {
   }
 
   _refreshItemSlot(slotIdx) {
-    const { bg, nameT, descT } = this._itemSlotObjs[slotIdx];
-    const item = this._items[slotIdx];
+    const { bg, nameT, descT, hintT } = this._itemSlotObjs[slotIdx];
+    const item  = this._items[slotIdx];
+    const owned = GameState.itemInventory;
     if (item) {
       bg.setFillStyle(ITEM_BG[item.type] || 0x0d0d1a);
       nameT.setText(item.name).setColor(ITEM_COLOR[item.type] || '#aaaaaa');
       descT.setText(item.description);
+      hintT.setText('\u21bb click to cycle');
+    } else if (owned.length === 0) {
+      bg.setFillStyle(0x111128);
+      nameT.setText('\u2014 empty \u2014').setColor('#555588');
+      descT.setText('visit Shop to buy items');
+      hintT.setText('');
     } else {
       bg.setFillStyle(0x111128);
       nameT.setText('\u2014 empty \u2014').setColor('#555588');
       descT.setText('');
+      hintT.setText('\u21bb click to cycle');
     }
   }
 

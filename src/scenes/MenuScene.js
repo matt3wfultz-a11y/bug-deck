@@ -18,6 +18,11 @@ export default class MenuScene extends Phaser.Scene {
       fontSize: '20px', color: '#66bbff', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
+    // ── Currency display ──────────────────────────────────────────────────────
+    this.add.text(width - 14, 14, `Gold: ${GameState.currency}`, {
+      fontSize: '13px', color: '#ffdd44', fontFamily: 'monospace',
+    }).setOrigin(1, 0);
+
     // ── Farm count ────────────────────────────────────────────────────────────
     const farmCount = GameState.getFarm().length;
     this.add.text(width / 2, 120, `Farm: ${farmCount} creature${farmCount !== 1 ? 's' : ''}`, {
@@ -53,6 +58,13 @@ export default class MenuScene extends Phaser.Scene {
     // ── Farm button ───────────────────────────────────────────────────────────
     this._makeButton(width / 2, nextY, 'FARM', '#88bbff', () => {
       this.scene.start('FarmScene');
+    });
+
+    nextY += 60;
+
+    // ── Shop button ───────────────────────────────────────────────────────────
+    this._makeButton(width / 2, nextY, 'SHOP', '#ffdd44', () => {
+      this.scene.start('ShopScene');
     });
   }
 

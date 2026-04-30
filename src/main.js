@@ -8,6 +8,7 @@ import BattleScene       from './scenes/BattleScene.js';
 import CaptureScene      from './scenes/CaptureScene.js';
 import FarmScene         from './scenes/FarmScene.js';
 import BreedingScene     from './scenes/BreedingScene.js';
+import ShopScene         from './scenes/ShopScene.js';
 import { creatures } from './data/creatures.js';
 
 // Expose to window for console testing
@@ -22,7 +23,7 @@ const config = {
   height:          600,
   backgroundColor: '#1a1a2e',
   parent:          document.body,
-  scene:           [MenuScene, DeckBuilderScene, MapScene, BattleScene, CaptureScene, FarmScene, BreedingScene],
+  scene:           [MenuScene, DeckBuilderScene, MapScene, BattleScene, CaptureScene, FarmScene, BreedingScene, ShopScene],
 };
 
 window.main = function () {

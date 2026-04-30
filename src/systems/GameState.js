@@ -19,6 +19,7 @@ class GameState {
     this.currentDeck         = [];        // array of creature ids in active deck
     this.unlockedArchetypes  = ['Flying'];
     this.currency            = 0;
+    this.itemInventory       = [];        // items purchased from shop (permanent unlocks)
     this.completedRuns       = 0;
     this.runFightWins        = 0;         // fight wins in current run (0-3)
     this.lootTaken           = false;     // true once loot taken this round
@@ -123,6 +124,33 @@ class GameState {
   /** @returns {object[]} Array of farm creature data objects. */
   getFarm() {
     return this.farm;
+  }
+
+  /** Compute sell price for a farm creature entry. */
+  sellPrice(entry) {
+    const base = entry.baseHp + entry.baseAtk * 3 + entry.baseDef * 2 + entry.baseSpd * 2;
+    return Math.floor(base * (1 + (entry.generation ?? 0) * 0.5));
+  }
+
+  /** Remove a farm creature by uid and credit the player. Returns gold earned (0 if not found). */
+  sellCreature(uid) {
+    const idx = this.farm.findIndex(e => e.uid === uid);
+    if (idx === -1) return 0;
+    const price = this.sellPrice(this.farm[idx]);
+    this.farm.splice(idx, 1);
+    this.currency += price;
+    this.saveGame();
+    return price;
+  }
+
+  /** Purchase an item. Returns true on success, false if already owned or insufficient funds. */
+  buyItem(item) {
+    if (this.currency < item.price) return false;
+    if (this.itemInventory.some(i => i.id === item.id)) return false;
+    this.currency -= item.price;
+    this.itemInventory.push({ ...item });
+    this.saveGame();
+    return true;
   }
 
   /**
@@ -232,6 +260,7 @@ class GameState {
       currentDeck:        this.currentDeck,
       unlockedArchetypes: this.unlockedArchetypes,
       currency:           this.currency,
+      itemInventory:      this.itemInventory,
       completedRuns:      this.completedRuns,
       runFightWins:       this.runFightWins,
       lootTaken:          this.lootTaken,
@@ -276,6 +305,7 @@ class GameState {
       this.currentDeck        = data.currentDeck        ?? [];
       this.unlockedArchetypes = data.unlockedArchetypes ?? ['Flying'];
       this.currency           = data.currency           ?? 0;
+      this.itemInventory      = data.itemInventory      ?? [];
       this.completedRuns      = data.completedRuns      ?? 0;
       this.runFightWins       = data.runFightWins       ?? 0;
       this.lootTaken          = data.lootTaken          ?? false;

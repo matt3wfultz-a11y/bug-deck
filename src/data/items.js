@@ -1,5 +1,14 @@
 export const items = [
-  // ── Basic items (available to all players) ────────────────────────────────
+  // ── Shop items ────────────────────────────────────────────────────────────
+  {
+    id:          'jar',
+    name:        'Jar',
+    type:        'catch',
+    description: 'Catch an insect',
+    price:       30,
+  },
+
+  // ── Basic items ───────────────────────────────────────────────────────────
   {
     id:          'nectar_vial',
     name:        'Nectar Vial',
@@ -7,6 +16,7 @@ export const items = [
     value:       30,
     percent:     true,
     description: 'Heal 30% HP',
+    price:       40,
   },
   {
     id:          'venom_gland',
@@ -14,6 +24,7 @@ export const items = [
     type:        'atkBuff',
     value:       1,
     description: 'ATK +1',
+    price:       45,
   },
   {
     id:          'chitin_shard',
@@ -21,6 +32,7 @@ export const items = [
     type:        'defBuff',
     value:       1,
     description: 'DEF +1',
+    price:       45,
   },
 
   // ── Flying items ──────────────────────────────────────────────────────────
@@ -31,6 +43,7 @@ export const items = [
     type:        'atkBuff',
     value:       3,
     description: 'ATK +3',
+    price:       80,
   },
   {
     id:          'featherlight_armor',
@@ -39,6 +52,7 @@ export const items = [
     type:        'defBuff',
     value:       3,
     description: 'DEF +3',
+    price:       80,
   },
 
   // ── Ground items ──────────────────────────────────────────────────────────
@@ -49,6 +63,7 @@ export const items = [
     type:        'defBuff',
     value:       4,
     description: 'DEF +4',
+    price:       90,
   },
   {
     id:          'mandible_claws',
@@ -57,6 +72,7 @@ export const items = [
     type:        'atkBuff',
     value:       4,
     description: 'ATK +4',
+    price:       90,
   },
 
   // ── Water items ───────────────────────────────────────────────────────────
@@ -67,6 +83,7 @@ export const items = [
     type:        'heal',
     value:       12,
     description: 'Heal 12 HP',
+    price:       70,
   },
   {
     id:          'silt_cloak',
@@ -75,5 +92,6 @@ export const items = [
     type:        'defBuff',
     value:       4,
     description: 'DEF +4',
+    price:       90,
   },
 ];

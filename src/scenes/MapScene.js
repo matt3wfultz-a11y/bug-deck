@@ -48,14 +48,14 @@ export default class MapScene extends Phaser.Scene {
     // ── Hand display ──────────────────────────────────────────────────────────
     this._buildHandDisplay();
 
-    // ── Item list ─────────────────────────────────────────────────────────────
-    const selectedItems = GameState.selectedItems || [];
-    const itemStr = selectedItems.length > 0
-      ? selectedItems.map(it => it.name).join('  |  ')
-      : 'none';
-    this.add.text(width / 2, 548, `Items: ${itemStr}`, {
-      fontSize: '11px', color: '#888888', fontFamily: 'monospace',
-    }).setOrigin(0.5);
+    // ── Shop button ───────────────────────────────────────────────────────────
+    const shopBtn = this.add.text(width / 2, 548, `[ SHOP ]  Gold: ${GameState.currency}`, {
+      fontSize: '14px', color: '#ffdd44', fontFamily: 'monospace',
+      backgroundColor: '#141408', padding: { x: 14, y: 7 },
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    shopBtn.on('pointerover', () => shopBtn.setColor('#ffffff'));
+    shopBtn.on('pointerout',  () => shopBtn.setColor('#ffdd44'));
+    shopBtn.on('pointerdown', () => this.scene.start('ShopScene'));
 
     // ── Abandon run ───────────────────────────────────────────────────────────
     this.add.text(16, 577, '[ ABANDON RUN ]', {

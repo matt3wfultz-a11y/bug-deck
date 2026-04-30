@@ -52,11 +52,12 @@ export default class ShopScene extends Phaser.Scene {
     this._buildContent();
 
     // ── Back button ───────────────────────────────────────────────────────────
+    const backTarget = GameState.selectedArchetype ? 'MapScene' : 'MenuScene';
     this.add.text(56, height - 24, '[ BACK ]', {
       fontSize: '15px', color: '#556677', fontFamily: 'monospace',
       backgroundColor: '#141428', padding: { x: 10, y: 7 },
     }).setOrigin(0.5).setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this.scene.start('MenuScene'));
+      .on('pointerdown', () => this.scene.start(backTarget));
 
     this._refreshTabs();
   }

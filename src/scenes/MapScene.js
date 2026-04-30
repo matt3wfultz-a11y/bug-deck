@@ -1,5 +1,4 @@
 import GameState from '../systems/GameState.js';
-import { items as itemData } from '../data/items.js';
 
 // Node card geometry
 const NODE_W   = 220;
@@ -42,20 +41,12 @@ export default class MapScene extends Phaser.Scene {
 
     // ── Node cards ────────────────────────────────────────────────────────────
     this._buildNodeCard(0, 'Fight');
-    this._buildNodeCard(1, 'Loot');
+    this._buildNodeCard(1, 'Shop');
     this._buildNodeCard(2, 'Breeding');
 
     // ── Hand display ──────────────────────────────────────────────────────────
     this._buildHandDisplay();
 
-    // ── Shop button ───────────────────────────────────────────────────────────
-    const shopBtn = this.add.text(width / 2, 548, `[ SHOP ]  Gold: ${GameState.currency}`, {
-      fontSize: '14px', color: '#ffdd44', fontFamily: 'monospace',
-      backgroundColor: '#141408', padding: { x: 14, y: 7 },
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    shopBtn.on('pointerover', () => shopBtn.setColor('#ffffff'));
-    shopBtn.on('pointerout',  () => shopBtn.setColor('#ffdd44'));
-    shopBtn.on('pointerdown', () => this.scene.start('ShopScene'));
 
     // ── Abandon run ───────────────────────────────────────────────────────────
     this.add.text(16, 577, '[ ABANDON RUN ]', {
@@ -97,15 +88,15 @@ export default class MapScene extends Phaser.Scene {
         btnLabel:    '[ ENTER ]',
         enabled:     true,
       },
-      Loot: {
-        label:       '\u25c6  LOOT',
-        sublabel:    'Find a random item',
-        tag:         GameState.lootTaken ? 'Already looted this round' : 'Free \u2014 does not use a round',
+      Shop: {
+        label:       '\u25a0  SHOP',
+        sublabel:    'Buy items, sell bugs',
+        tag:         `Gold: ${GameState.currency}`,
         color:       '#ffdd44',
         borderColor: 0x887722,
         bgColor:     0x110f06,
-        btnLabel:    GameState.lootTaken ? '[ TAKEN ]' : '[ TAKE ]',
-        enabled:     !GameState.lootTaken,
+        btnLabel:    '[ ENTER ]',
+        enabled:     true,
       },
       Breeding: {
         label:       '\u2665  BREEDING',
@@ -218,54 +209,11 @@ export default class MapScene extends Phaser.Scene {
   _enterNode(type) {
     if (type === 'Fight') {
       this.scene.start('BattleScene');
-    } else if (type === 'Loot') {
-      this._doLoot();
+    } else if (type === 'Shop') {
+      this.scene.start('ShopScene');
     } else if (type === 'Breeding') {
       this.scene.start('BreedingScene');
     }
-  }
-
-  _doLoot() {
-    const { width, height } = this.scale;
-
-    // Pick a random non-archetype-specific item
-    const lootPool = itemData.filter(it => !it.archetype);
-    const item     = lootPool[Math.floor(Math.random() * lootPool.length)];
-
-    GameState.selectedItems = [...(GameState.selectedItems || []), item];
-    GameState.lootTaken     = true;
-    GameState.saveGame();
-
-    // ── Loot overlay ──────────────────────────────────────────────────────────
-    this.add.rectangle(width / 2, height / 2, width, height, 0x000000, 0.75)
-      .setDepth(30).setInteractive(); // blocks clicks behind
-
-    this.add.rectangle(width / 2, height / 2, 320, 160, 0x111122).setDepth(30.5);
-
-    const panelGfx = this.add.graphics().setDepth(31);
-    panelGfx.lineStyle(2, 0x887722, 1);
-    panelGfx.strokeRect(width / 2 - 160, height / 2 - 80, 320, 160);
-
-    this.add.text(width / 2, height / 2 - 54, 'LOOT FOUND!', {
-      fontSize: '18px', color: '#ffdd44', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(32);
-
-    this.add.text(width / 2, height / 2 - 20, item.name, {
-      fontSize: '22px', color: '#ffffff', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5).setDepth(32);
-
-    this.add.text(width / 2, height / 2 + 14, item.description, {
-      fontSize: '14px', color: '#aaaaaa', fontFamily: 'monospace',
-    }).setOrigin(0.5).setDepth(32);
-
-    const okBtn = this.add.text(width / 2, height / 2 + 52, '[ OK ]', {
-      fontSize: '18px', color: '#ffdd44', fontFamily: 'monospace',
-      backgroundColor: '#141428', padding: { x: 16, y: 8 },
-    }).setOrigin(0.5).setDepth(32).setInteractive({ useHandCursor: true });
-
-    okBtn.on('pointerover', () => okBtn.setScale(1.06));
-    okBtn.on('pointerout',  () => okBtn.setScale(1));
-    okBtn.on('pointerdown', () => this.scene.restart());
   }
 
   _showVictory() {

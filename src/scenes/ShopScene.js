@@ -92,15 +92,19 @@ export default class ShopScene extends Phaser.Scene {
   // ── Sell tab ──────────────────────────────────────────────────────────────
 
   _buildSell() {
-    const farm = GameState.getFarm();
-    if (farm.length === 0) {
+    const farm = GameState.getFarm().map(e => ({ ...e, _source: 'farm' }));
+    const hand = (GameState.hand || []).map(e => ({ ...e, _source: 'hand' }));
+    const all  = [...farm, ...hand];
+
+    if (all.length === 0) {
       const t = this.add.text(400, 300, 'No bugs to sell.\nCapture some in battle first!', {
         fontSize: '16px', color: '#333355', fontFamily: 'monospace', align: 'center',
       }).setOrigin(0.5);
       this._contentObjs.push(t);
       return;
     }
-    farm.forEach((entry, i) => {
+
+    all.forEach((entry, i) => {
       const col = i % COLS;
       const row = Math.floor(i / COLS);
       const cx  = START_X + col * (CARD_W + GAP);
@@ -112,15 +116,21 @@ export default class ShopScene extends Phaser.Scene {
   _buildSellCard(entry, cx, cy) {
     const price     = GameState.sellPrice(entry);
     const archColor = ARCH_COLOR[entry.archetype] || '#aaaaaa';
+    const fromHand  = entry._source === 'hand';
 
-    const bg  = this.add.rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H, 0x0d0d1a);
+    const bg  = this.add.rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H,
+      fromHand ? 0x0d0d1a : 0x0d0d1a);
     const gfx = this.add.graphics();
-    gfx.lineStyle(1, 0x2a2a50, 1);
+    gfx.lineStyle(1, fromHand ? 0x334433 : 0x2a2a50, 1);
     gfx.strokeRect(cx, cy, CARD_W, CARD_H);
 
     const nameT  = this.add.text(cx + 8, cy + 7, entry.name, {
       fontSize: '12px', color: archColor, fontFamily: 'monospace', fontStyle: 'bold',
     });
+    const sourceT = this.add.text(cx + CARD_W - 8, cy + 7,
+      fromHand ? 'HAND' : 'FARM', {
+      fontSize: '9px', color: fromHand ? '#88aa88' : '#556677', fontFamily: 'monospace',
+    }).setOrigin(1, 0);
     const statT  = this.add.text(cx + 8, cy + 24,
       `HP:${entry.baseHp}  ATK:${entry.baseAtk}  DEF:${entry.baseDef}  SPD:${entry.baseSpd}`, {
       fontSize: '9px', color: '#888888', fontFamily: 'monospace',
@@ -129,14 +139,7 @@ export default class ShopScene extends Phaser.Scene {
       fontSize: '10px', color: '#ffdd44', fontFamily: 'monospace',
     });
 
-    const objs = [bg, gfx, nameT, statT, priceT];
-
-    if (entry.generation > 0) {
-      const genT = this.add.text(cx + CARD_W - 8, cy + 7, `Gen ${entry.generation}`, {
-        fontSize: '9px', color: '#888844', fontFamily: 'monospace',
-      }).setOrigin(1, 0);
-      objs.push(genT);
-    }
+    const objs = [bg, gfx, nameT, sourceT, statT, priceT];
 
     const btn = this.add.text(cx + CARD_W - 8, cy + CARD_H / 2 + 6, '[ SELL ]', {
       fontSize: '11px', color: '#ff9944', fontFamily: 'monospace',
@@ -145,7 +148,8 @@ export default class ShopScene extends Phaser.Scene {
     btn.on('pointerover', () => btn.setColor('#ffffff'));
     btn.on('pointerout',  () => btn.setColor('#ff9944'));
     btn.on('pointerdown', () => {
-      GameState.sellCreature(entry.uid);
+      if (fromHand) GameState.sellFromHand(entry.uid);
+      else          GameState.sellCreature(entry.uid);
       this._goldText.setText(`Gold: ${GameState.currency}`);
       this._rebuildContent();
     });
@@ -168,8 +172,11 @@ export default class ShopScene extends Phaser.Scene {
   }
 
   _buildBuyCard(item, cx, cy, h) {
-    const owned     = GameState.itemInventory.some(i => i.id === item.id);
+    const jarCount  = item.id === 'jar' ? GameState.itemInventory.filter(i => i.id === 'jar').length : 0;
+    const isJar     = item.id === 'jar';
+    const owned     = isJar ? jarCount >= 5 : GameState.itemInventory.some(i => i.id === item.id);
     const canAfford = GameState.currency >= item.price;
+    const canBuy    = !owned && canAfford;
     const archLabel = item.archetype ? `[${item.archetype}]` : '[Basic]';
     const archColor = item.archetype ? (ARCH_COLOR[item.archetype] || '#aaaaaa') : '#888888';
     const nameColor = owned ? '#66aa66' : (ITEM_COLOR[item.type] || '#dddddd');
@@ -192,33 +199,40 @@ export default class ShopScene extends Phaser.Scene {
 
     const objs = [bg, gfx, archT, nameT, descT];
 
-    if (owned) {
+    // Jar: show X/5 count; others: show OWNED or BUY
+    if (isJar) {
+      const countT = this.add.text(cx + CARD_W - 8, cy + 8, `${jarCount} / 5`, {
+        fontSize: '11px', color: jarCount >= 5 ? '#66aa66' : '#ffdd44', fontFamily: 'monospace',
+      }).setOrigin(1, 0);
+      objs.push(countT);
+    } else if (owned) {
       const ownedT = this.add.text(cx + CARD_W - 8, cy + h / 2, '✓ OWNED', {
         fontSize: '11px', color: '#66aa66', fontFamily: 'monospace',
       }).setOrigin(1, 0.5);
       objs.push(ownedT);
-    } else {
-      const priceT = this.add.text(cx + 8, cy + 58, `${item.price}g`, {
-        fontSize: '11px', color: canAfford ? '#ffdd44' : '#664422', fontFamily: 'monospace', fontStyle: 'bold',
-      });
-      const btn = this.add.text(cx + CARD_W - 8, cy + h / 2 + 8, '[ BUY ]', {
-        fontSize: '11px', color: canAfford ? '#a8ff78' : '#444444', fontFamily: 'monospace',
-        backgroundColor: '#111428', padding: { x: 6, y: 4 },
-      }).setOrigin(1, 0.5);
-
-      if (canAfford) {
-        btn.setInteractive({ useHandCursor: true });
-        btn.on('pointerover', () => btn.setColor('#ffffff'));
-        btn.on('pointerout',  () => btn.setColor('#a8ff78'));
-        btn.on('pointerdown', () => {
-          if (GameState.buyItem(item)) {
-            this._goldText.setText(`Gold: ${GameState.currency}`);
-            this._rebuildContent();
-          }
-        });
-      }
-      objs.push(priceT, btn);
     }
+
+    const priceT = this.add.text(cx + 8, cy + 58, `${item.price}g`, {
+      fontSize: '11px', color: canAfford && !owned ? '#ffdd44' : '#664422',
+      fontFamily: 'monospace', fontStyle: 'bold',
+    });
+    const btn = this.add.text(cx + CARD_W - 8, cy + h / 2 + 8, '[ BUY ]', {
+      fontSize: '11px', color: canBuy ? '#a8ff78' : '#444444', fontFamily: 'monospace',
+      backgroundColor: '#111428', padding: { x: 6, y: 4 },
+    }).setOrigin(1, 0.5);
+
+    if (canBuy) {
+      btn.setInteractive({ useHandCursor: true });
+      btn.on('pointerover', () => btn.setColor('#ffffff'));
+      btn.on('pointerout',  () => btn.setColor('#a8ff78'));
+      btn.on('pointerdown', () => {
+        if (GameState.buyItem(item)) {
+          this._goldText.setText(`Gold: ${GameState.currency}`);
+          this._rebuildContent();
+        }
+      });
+    }
+    objs.push(priceT, btn);
 
     this._contentObjs.push(...objs);
   }

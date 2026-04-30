@@ -143,14 +143,31 @@ class GameState {
     return price;
   }
 
-  /** Purchase an item. Returns true on success, false if already owned or insufficient funds. */
+  /** Purchase an item. Jars stack up to 5; all others are one-per-id. */
   buyItem(item) {
     if (this.currency < item.price) return false;
-    if (this.itemInventory.some(i => i.id === item.id)) return false;
+    if (item.id === 'jar') {
+      if (this.itemInventory.filter(i => i.id === 'jar').length >= 5) return false;
+    } else {
+      if (this.itemInventory.some(i => i.id === item.id)) return false;
+    }
     this.currency -= item.price;
     this.itemInventory.push({ ...item });
     this.saveGame();
     return true;
+  }
+
+  /** Remove a hand creature by uid and credit the player. Returns gold earned (0 if not found). */
+  sellFromHand(uid) {
+    const hi = this.hand.findIndex(e => e.uid === uid);
+    if (hi === -1) return 0;
+    const price = this.sellPrice(this.hand[hi]);
+    this.hand.splice(hi, 1);
+    const di = this.selectedDeck.findIndex(e => e.uid === uid);
+    if (di !== -1) this.selectedDeck.splice(di, 1);
+    this.currency += price;
+    this.saveGame();
+    return price;
   }
 
   /**

@@ -10,7 +10,8 @@ const START_Y  = 72;
 const COL_STEP = CARD_W + GAP;  // 184
 const ROW_STEP = CARD_H + GAP;  // 138
 
-const ARCH_COLOR = { Flying: '#ffdd44', Ground: '#cc9944', Water: '#66aaff' };
+const ARCH_COLOR  = { Flying: '#ffdd44', Ground: '#cc9944', Water: '#66aaff' };
+const BREED_COST  = 50;
 
 export default class BreedingScene extends Phaser.Scene {
   constructor() {
@@ -26,7 +27,7 @@ export default class BreedingScene extends Phaser.Scene {
     this.add.text(width / 2, 16, 'BREEDING', {
       fontSize: '22px', color: '#cc88ff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5);
-    this.add.text(width / 2, 42, 'Select 2 hand creatures to combine', {
+    this.add.text(width / 2, 42, `Select 2 hand creatures to combine  —  costs ${BREED_COST}g`, {
       fontSize: '12px', color: '#555577', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
@@ -170,16 +171,19 @@ export default class BreedingScene extends Phaser.Scene {
   }
 
   _refresh() {
-    const canBreed = this._selected.size === 2 && this._hand.length >= 2;
+    const canAfford = GameState.currency >= BREED_COST;
+    const canBreed  = this._selected.size === 2 && this._hand.length >= 2 && canAfford;
     this._breedBtn.setData('disabled', !canBreed).setAlpha(canBreed ? 1 : 0.35);
 
     const remaining = 2 - this._selected.size;
     if (this._hand.length < 2) {
       this._hintText.setText('Not enough creatures to breed.');
+    } else if (!canAfford) {
+      this._hintText.setText(`Not enough gold  (need ${BREED_COST}g, have ${GameState.currency}g)`);
     } else if (remaining > 0) {
       this._hintText.setText(`Select ${remaining} more creature${remaining > 1 ? 's' : ''}`);
     } else {
-      this._hintText.setText('Ready to breed! Click [ BREED ]');
+      this._hintText.setText(`Ready to breed! Click [ BREED ]  (${BREED_COST}g)`);
     }
   }
 
@@ -193,6 +197,8 @@ export default class BreedingScene extends Phaser.Scene {
     this._hintText.setText('Breeding...');
 
     this.time.delayedCall(700, () => {
+      GameState.currency -= BREED_COST;
+      GameState.saveGame();
       const offspring = GameState.breedFromHand(idx1, idx2);
       if (offspring) {
         this._hand     = GameState.selectedDeck;

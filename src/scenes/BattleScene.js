@@ -192,9 +192,16 @@ export default class BattleScene extends Phaser.Scene {
         fontSize: '17px', color, fontFamily: 'monospace',
         backgroundColor: '#141428', padding: { x: 8, y: 5 },
       }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-      btn.on('pointerover', () => { if (!btn.getData('disabled')) btn.setScale(1.08); });
-      btn.on('pointerout',  () => btn.setScale(1));
-      btn.on('pointerdown', () => { if (!btn.getData('disabled')) this._queueAction(key); });
+      btn.on('pointerover', () => {
+        if (!btn.getData('disabled')) this.tweens.add({ targets: btn, scale: 1.1, duration: 80, ease: 'Quad.easeOut' });
+      });
+      btn.on('pointerout', () => this.tweens.add({ targets: btn, scale: 1, duration: 80, ease: 'Quad.easeOut' }));
+      btn.on('pointerdown', () => {
+        if (!btn.getData('disabled')) {
+          this.tweens.add({ targets: btn, scale: 0.9, duration: 55, yoyo: true, ease: 'Quad.easeOut' });
+          this._queueAction(key);
+        }
+      });
       this._buttons[key] = btn;
     });
 
@@ -203,9 +210,16 @@ export default class BattleScene extends Phaser.Scene {
       fontSize: '17px', color: '#a8ff78', fontFamily: 'monospace',
       backgroundColor: '#141428', padding: { x: 8, y: 5 },
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    this._endTurnBtn.on('pointerover', () => { if (!this._endTurnBtn.getData('disabled')) this._endTurnBtn.setScale(1.08); });
-    this._endTurnBtn.on('pointerout',  () => this._endTurnBtn.setScale(1));
-    this._endTurnBtn.on('pointerdown', () => { if (!this._endTurnBtn.getData('disabled')) this._onEndTurn(); });
+    this._endTurnBtn.on('pointerover', () => {
+      if (!this._endTurnBtn.getData('disabled')) this.tweens.add({ targets: this._endTurnBtn, scale: 1.1, duration: 80, ease: 'Quad.easeOut' });
+    });
+    this._endTurnBtn.on('pointerout', () => this.tweens.add({ targets: this._endTurnBtn, scale: 1, duration: 80, ease: 'Quad.easeOut' }));
+    this._endTurnBtn.on('pointerdown', () => {
+      if (!this._endTurnBtn.getData('disabled')) {
+        this.tweens.add({ targets: this._endTurnBtn, scale: 0.9, duration: 55, yoyo: true, ease: 'Quad.easeOut' });
+        this._onEndTurn();
+      }
+    });
 
     this._itemLabel = this.add.text(width / 2 + 40, 330, '', {
       fontSize: '9px', color: '#888888', fontFamily: 'monospace',
@@ -472,6 +486,7 @@ export default class BattleScene extends Phaser.Scene {
         duration: 110, yoyo: true, ease: 'Quad.easeOut',
         onComplete: () => { this._playerSprite.x = this._playerHomeX; animDone(); },
       });
+      this.time.delayedCall(95, () => this._hitShake(this._enemySprite, this._enemyHomeX, 0xaa3333));
     }
 
     if (needsEnemyAnim) {
@@ -480,7 +495,22 @@ export default class BattleScene extends Phaser.Scene {
         duration: 110, yoyo: true, ease: 'Quad.easeOut',
         onComplete: () => { this._enemySprite.x = this._enemyHomeX; animDone(); },
       });
+      this.time.delayedCall(95, () => this._hitShake(this._playerSprite, this._playerHomeX, 0x33aa55));
     }
+  }
+
+  _hitShake(sprite, homeX, restoreColor) {
+    sprite.setFillStyle(0xffffff);
+    this.time.delayedCall(80, () => { if (sprite.active) sprite.setFillStyle(restoreColor); });
+    this.tweens.add({
+      targets: sprite,
+      x: { from: homeX - 11, to: homeX + 11 },
+      duration: 45,
+      yoyo: true,
+      repeat: 3,
+      ease: 'Sine.easeInOut',
+      onComplete: () => { if (sprite.active) sprite.x = homeX; },
+    });
   }
 
   // Fade sprites for any creatures that died in the last pair, then continue
@@ -944,7 +974,8 @@ export default class BattleScene extends Phaser.Scene {
   _endBattle() {
     this._setQueueButtons(false);
     this._endTurnBtn.setData('disabled', true).setAlpha(0.35);
-    this._statusText.setVisible(true);
+    this._statusText.setScale(0).setVisible(true);
+    this.tweens.add({ targets: this._statusText, scale: 1, duration: 320, ease: 'Back.easeOut' });
 
     GameState.selectedDeck = GameState.selectedDeck.filter((_, i) =>
       this._deckRoster[i]?.isAlive()

@@ -1,4 +1,5 @@
 import GameState from '../systems/GameState.js';
+import { ensureBeetleTexture, partsFromSeed } from '../utils/BeetleRenderer.js';
 
 const CARD_W   = 176;
 const CARD_H   = 110;
@@ -140,6 +141,14 @@ export default class FarmScene extends Phaser.Scene {
       `\u2726 ${creature.ability.name}`,
       { fontSize: '10px', color: '#665577', fontFamily: 'monospace' }
     ).setOrigin(0.5, 0);
+
+    // Beetle thumbnail (bottom-right of card)
+    const parts = creature.parts || partsFromSeed(creature.id || creature.name);
+    const thumb = this.add.image(cx + CARD_W - 26, cy + CARD_H - 24, '__DEFAULT').setDisplaySize(44, 44);
+    ensureBeetleTexture(this, parts).then(key => {
+      if (thumb.active) thumb.setTexture(key).setDisplaySize(44, 44);
+    });
+    this._cardObjects.push(thumb);
 
     // Generation badge (only for bred creatures)
     const gen = creature.generation ?? 0;

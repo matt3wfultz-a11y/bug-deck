@@ -3,6 +3,7 @@ import BattleSystem, { ADVANTAGE } from '../systems/BattleSystem.js';
 import BattleQueue      from '../systems/BattleQueue.js';
 import GameState        from '../systems/GameState.js';
 import { creatures as creatureData } from '../data/creatures.js';
+import { ensureBeetleTexture, beetleKey } from '../utils/BeetleRenderer.js';
 
 const BAR_W          = 200;
 const BAR_H          = 12;
@@ -100,7 +101,7 @@ export default class BattleScene extends Phaser.Scene {
     this._enemyHomeX  = 645;
 
     // ── Player panel ──────────────────────────────────────────────────────────
-    this._playerSprite = this.add.rectangle(this._playerHomeX, 155, 64, 64, 0x33aa55);
+    this._playerSprite = this.add.image(this._playerHomeX, 155, '__DEFAULT').setDisplaySize(80, 80).setVisible(false);
     this._playerName   = this.add.text(16, 68, '', {
       fontSize: '17px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
     });
@@ -131,7 +132,7 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     // ── Enemy panel ───────────────────────────────────────────────────────────
-    this._enemySprite = this.add.rectangle(this._enemyHomeX, 155, 64, 64, 0xaa3333);
+    this._enemySprite = this.add.image(this._enemyHomeX, 155, '__DEFAULT').setDisplaySize(80, 80).setVisible(false);
     this._enemyName   = this.add.text(width - 16, 68, '', {
       fontSize: '17px', color: '#ff8888', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(1, 0);
@@ -228,7 +229,17 @@ export default class BattleScene extends Phaser.Scene {
 
     // ── Hand UI ───────────────────────────────────────────────────────────────
     this._buildHandUI();
-    this._startTurn();
+    this._preloadBeetleTextures().then(() => this._startTurn());
+  }
+
+  async _preloadBeetleTextures() {
+    const all = [...this._deckRoster, ...this.battleSystem.enemyHand];
+    await Promise.all(all.map(c => ensureBeetleTexture(this, c.parts)));
+  }
+
+  _syncBeetleSprite(sprite, creature) {
+    const key = beetleKey(creature.parts);
+    if (this.textures.exists(key)) sprite.setTexture(key).setDisplaySize(80, 80);
   }
 
   // ── Turn lifecycle ────────────────────────────────────────────────────────
@@ -870,7 +881,8 @@ export default class BattleScene extends Phaser.Scene {
       this._playerName.setText(player.name);
       this._playerStats.setText(`ATK ${ps.atk}  DEF ${ps.def}  SPD ${ps.spd}`);
       this._setHpBar(this._playerHpFill, this._playerHpText, player.currentHP, ps.hp);
-      this._playerSprite.setVisible(true);
+      this._playerSprite.setVisible(true).setAlpha(1);
+      this._syncBeetleSprite(this._playerSprite, player);
     } else {
       this._playerName.setText('\u2014');
       this._playerStats.setText('');
@@ -884,7 +896,8 @@ export default class BattleScene extends Phaser.Scene {
       this._enemyName.setText(enemy.name);
       this._enemyStats.setText(`ATK ${es.atk}  DEF ${es.def}  SPD ${es.spd}`);
       this._setHpBar(this._enemyHpFill, this._enemyHpText, enemy.currentHP, es.hp);
-      this._enemySprite.setVisible(true);
+      this._enemySprite.setVisible(true).setAlpha(1);
+      this._syncBeetleSprite(this._enemySprite, enemy);
     } else {
       this._enemyName.setText('\u2014');
       this._enemyStats.setText('');

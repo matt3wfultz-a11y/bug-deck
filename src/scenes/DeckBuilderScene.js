@@ -1,5 +1,6 @@
 import GameState from '../systems/GameState.js';
 import { creatures as creatureData } from '../data/creatures.js';
+import { ensureBeetleTexture, partsFromSeed } from '../utils/BeetleRenderer.js';
 
 const MAX_DECK  = 5;
 const CARD_W    = 186;
@@ -261,6 +262,14 @@ export default class DeckBuilderScene extends Phaser.Scene {
     ).setOrigin(0.5, 0).setAlpha(alreadyPicked ? 0.4 : 0.85);
     this._gridObjs.push(spT);
 
+    // Beetle thumbnail (right side of card)
+    const parts = creature.parts || partsFromSeed(creature.id || creature.name);
+    const thumb = this.add.image(cx + CARD_W - 26, cy + CARD_H / 2, '__DEFAULT')
+      .setDisplaySize(44, 44).setAlpha(alpha);
+    ensureBeetleTexture(this, parts).then(key => {
+      if (thumb.active) thumb.setTexture(key).setDisplaySize(44, 44);
+    });
+
     if (!alreadyPicked) {
       const hit = this.add
         .rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H, 0x000000, 0)
@@ -271,7 +280,7 @@ export default class DeckBuilderScene extends Phaser.Scene {
       this._gridObjs.push(hit);
     }
 
-    this._gridObjs.push(bg, gfx, nameT, statsT, abilT);
+    this._gridObjs.push(bg, gfx, nameT, statsT, abilT, thumb);
   }
 
   // ── Deck management ───────────────────────────────────────────────────────

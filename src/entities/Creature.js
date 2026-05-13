@@ -22,6 +22,7 @@ export default class Creature {
     this.archetype = data.archetype;
     this.ability   = data.ability;
     this.special   = data.special ?? null;
+    this.parts     = data.parts   || Creature.randomParts();
     this.level     = level;
     this.parentIds = parentIds;
     // Base stats stored for scaling
@@ -96,6 +97,24 @@ export default class Creature {
    * @param {number} generation
    * @returns {Creature}
    */
+  static randomParts() {
+    return {
+      head:  Math.ceil(Math.random() * 4),
+      body:  Math.ceil(Math.random() * 4),
+      legs:  Math.ceil(Math.random() * 4),
+      wings: Math.random() < 0.5,
+    };
+  }
+
+  static breedParts(p1, p2) {
+    return {
+      head:  Math.random() < 0.5 ? p1.head  : p2.head,
+      body:  Math.random() < 0.5 ? p1.body  : p2.body,
+      legs:  Math.random() < 0.5 ? p1.legs  : p2.legs,
+      wings: Math.random() < 0.5 ? p1.wings : p2.wings,
+    };
+  }
+
   static breed(p1, p2, generation = 1) {
     const p1s   = p1.getStats();
     const p2s   = p2.getStats();
@@ -121,6 +140,7 @@ export default class Creature {
       archetype: template.archetype,
       ability:   template.ability,
       special,
+      parts:   Creature.breedParts(p1.parts, p2.parts),
       baseHp:  cap(avg(p1s.hp,  p2s.hp)),
       baseAtk: cap(avg(p1s.atk, p2s.atk)),
       baseDef: cap(avg(p1s.def, p2s.def)),

@@ -1,4 +1,5 @@
 import GameState from '../systems/GameState.js';
+import { ensureBeetleTexture, partsFromSeed } from '../utils/BeetleRenderer.js';
 
 export default class CaptureScene extends Phaser.Scene {
   constructor() {
@@ -47,8 +48,12 @@ export default class CaptureScene extends Phaser.Scene {
       this.add.rectangle(width / 2, cardY + cardH / 2, cardW, cardH, 0x2a2a50)
         .setOrigin(0.5).setFillStyle(0x111122).setStrokeStyle(1, 0x4444aa);
 
-      // Creature sprite placeholder
-      this.add.rectangle(width / 2, cardY + 56, 60, 60, 0x33aa55);
+      // Creature sprite — load beetle image async, placeholder until ready
+      const thumb = this.add.image(width / 2, cardY + 56, '__DEFAULT').setDisplaySize(72, 72);
+      const parts = creature.parts || partsFromSeed(creature.id);
+      ensureBeetleTexture(this, parts).then(key => {
+        if (thumb.active) thumb.setTexture(key).setDisplaySize(72, 72);
+      });
 
       const stats = creature.getStats();
 

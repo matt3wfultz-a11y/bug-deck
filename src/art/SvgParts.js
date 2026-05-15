@@ -175,7 +175,9 @@ export function createBugContainer(scene, x, y, parts, scale = 0.5) {
  */
 export function destroyBugContainer(container) {
   if (!container) return;
-  container.getAll().forEach(child => child.destroy());
+  if (typeof container.getAll === 'function') {
+    container.getAll().forEach(child => child.destroy());
+  }
   container.destroy();
 }
 

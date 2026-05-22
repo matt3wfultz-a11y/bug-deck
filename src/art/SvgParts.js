@@ -75,10 +75,6 @@ export function destroyBugContainer(container) {
  * Returns random parts for a creature of the given archetype.
  */
 export function randomParts(archetype) {
-  return {
-    body:  Math.ceil(Math.random() * PART_COUNTS.body),
-    head:  Math.ceil(Math.random() * PART_COUNTS.head),
-    legs:  Math.ceil(Math.random() * PART_COUNTS.legs),
-    wings: archetype === 'Flying' ? 1 : 0,
-  };
+  const v = Math.ceil(Math.random() * PART_COUNTS.body);
+  return { body: v, head: v, legs: v, wings: archetype === 'Flying' ? 1 : 0 };
 }

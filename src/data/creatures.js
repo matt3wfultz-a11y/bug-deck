@@ -93,7 +93,7 @@ export const creatures = [
     baseSpd: 4,
     ability: { name: 'Colony Call', desc: 'Gain +2 ATK for each other Ground creature in the deck (max +6).' },
     special: { name: 'Quake March', element: 'Earth', desc: '2× damage. Colony stampede shakes Flying types from the sky (2× ADV).' },
-    parts: { body: 2, head: 3, legs: 4, wings: 0 },
+    parts: { body: 2, head: 2, legs: 2, wings: 0 },
   },
   {
     id: 'grasshopper',
@@ -105,7 +105,7 @@ export const creatures = [
     baseSpd: 5,
     ability: { name: 'Leap Strike', desc: 'Can attack back row enemies without obstruction.' },
     special: { name: 'Fault Leap', element: 'Earth', desc: '2× damage. Seismic landing devastates Flying types (2× ADV).' },
-    parts: { body: 3, head: 4, legs: 1, wings: 0 },
+    parts: { body: 3, head: 3, legs: 3, wings: 0 },
   },
   {
     id: 'cricket',
@@ -117,7 +117,7 @@ export const creatures = [
     baseSpd: 4,
     ability: { name: 'Chirp Rally', desc: 'Boost an ally\'s SPD by 2 for 1 turn.' },
     special: { name: 'Rumble Pulse', element: 'Earth', desc: '2× damage. Ground shockwave knocks Flying types down (2× ADV).' },
-    parts: { body: 4, head: 1, legs: 2, wings: 0 },
+    parts: { body: 4, head: 4, legs: 4, wings: 0 },
   },
 
   // ── Water ────────────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ export const creatures = [
     baseSpd: 6,
     ability: { name: 'Ripple Step', desc: 'Dodge the next attack (once per battle).' },
     special: { name: 'Tidal Wave', element: 'Tide', desc: '2× damage. Massive surge drowns Ground types (2× ADV).' },
-    parts: { body: 2, head: 1, legs: 2, wings: 1 },
+    parts: { body: 1, head: 1, legs: 1, wings: 1 },
   },
   {
     id: 'mosquito',
@@ -143,7 +143,7 @@ export const creatures = [
     baseSpd: 7,
     ability: { name: 'Blood Drain', desc: 'Heal 2 HP when dealing damage.' },
     special: { name: 'Blood Flood', element: 'Tide', desc: '2× damage. Torrential drain overwhelms Ground types (2× ADV).' },
-    parts: { body: 3, head: 2, legs: 1, wings: 0 },
+    parts: { body: 2, head: 2, legs: 2, wings: 0 },
   },
   {
     id: 'water_strider',
@@ -155,7 +155,7 @@ export const creatures = [
     baseSpd: 7,
     ability: { name: 'Surface Skate', desc: 'Cannot be targeted first; enemies must defeat other creatures first.' },
     special: { name: 'Whirlpool', element: 'Tide', desc: '2× damage. Vortex pull swallows Ground types whole (2× ADV).' },
-    parts: { body: 4, head: 3, legs: 4, wings: 0 },
+    parts: { body: 3, head: 3, legs: 3, wings: 0 },
   },
   {
     id: 'aquatic_insect',
@@ -167,6 +167,6 @@ export const creatures = [
     baseSpd: 5,
     ability: { name: 'Submerse', desc: 'Skip a turn to become untargetable; emerge next turn with +3 ATK.' },
     special: { name: 'Undertow', element: 'Tide', desc: '2× damage. Deep current drags Ground types under (2× ADV).' },
-    parts: { body: 1, head: 4, legs: 3, wings: 0 },
+    parts: { body: 4, head: 4, legs: 4, wings: 0 },
   },
 ];

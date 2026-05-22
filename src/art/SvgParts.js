@@ -28,13 +28,18 @@ export const PART_COUNTS = {
 };
 
 /**
- * Returns a data URI SVG string showing ONLY the target group,
+ * Returns a Blob URL for an SVG showing ONLY the target group,
  * hiding all other top-level <g> elements.
+ * Blob URLs are more reliable than data URIs for large SVGs in Phaser.
  */
 function isolateGroup(svgText, groupId) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(svgText, 'image/svg+xml');
   const svg = doc.documentElement;
+
+  // Ensure explicit pixel dimensions so Phaser knows the raster size
+  svg.setAttribute('width', '256');
+  svg.setAttribute('height', '256');
 
   // Hide all direct child <g> elements
   Array.from(svg.children).forEach(el => {
@@ -47,7 +52,8 @@ function isolateGroup(svgText, groupId) {
 
   const serializer = new XMLSerializer();
   const str = serializer.serializeToString(svg);
-  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(str);
+  const blob = new Blob([str], { type: 'image/svg+xml' });
+  return URL.createObjectURL(blob);
 }
 
 /**
@@ -82,23 +88,30 @@ export async function fetchSvgData() {
     });
   }
 
-  // wings-0 = transparent 1×1 placeholder
+  // wings-0 = transparent 1×1 placeholder (Blob URL)
   if (!_dataUriCache['bug-wings-0']) {
-    _dataUriCache['bug-wings-0'] =
-      'data:image/svg+xml;charset=utf-8,' +
-      encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
+    const emptyBlob = new Blob(
+      ['<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>'],
+      { type: 'image/svg+xml' }
+    );
+    _dataUriCache['bug-wings-0'] = URL.createObjectURL(emptyBlob);
   }
 }
 
 /**
- * Phase 2 (sync): Register all cached data URIs as Phaser textures using scene.load.image().
+ * Phase 2 (sync): Register all cached Blob URLs as Phaser SVG textures.
+ * Uses scene.load.svg() with explicit 256×256 so Phaser rasterises correctly.
  * Must be called from a Phaser scene's preload() method.
  * No-ops for keys that are already registered.
  */
 export function registerSvgTextures(scene) {
-  for (const [key, dataUri] of Object.entries(_dataUriCache)) {
+  for (const [key, blobUrl] of Object.entries(_dataUriCache)) {
     if (!scene.textures.exists(key)) {
-      scene.load.image(key, dataUri);
+      if (key === 'bug-wings-0') {
+        // 1×1 transparent placeholder — just skip; we'll handle missing texture gracefully
+        continue;
+      }
+      scene.load.svg(key, blobUrl, { width: 256, height: 256 });
     }
   }
 }
@@ -143,15 +156,15 @@ export function createBugContainer(scene, x, y, parts, scale = 0.5) {
     ? `bug-head-${safeParts.head}` : 'bug-head-1';
   const legsKey  = scene.textures.exists(`bug-legs-${safeParts.legs}`)
     ? `bug-legs-${safeParts.legs}` : 'bug-legs-1';
-  const wingsKey = safeParts.wings > 0 && scene.textures.exists(`bug-wings-${safeParts.wings}`)
-    ? `bug-wings-${safeParts.wings}` : 'bug-wings-0';
-
   const container = scene.add.container(x, y);
 
   // Add in back-to-front order: wings behind everything, then body, legs, head on top
-  if (scene.textures.exists(wingsKey)) {
-    const wingsImg = scene.add.image(0, 0, wingsKey).setScale(scale);
-    container.add(wingsImg);
+  if (safeParts.wings > 0) {
+    const wingsKey = `bug-wings-${safeParts.wings}`;
+    if (scene.textures.exists(wingsKey)) {
+      const wingsImg = scene.add.image(0, 0, wingsKey).setScale(scale);
+      container.add(wingsImg);
+    }
   }
   if (scene.textures.exists(bodyKey)) {
     const bodyImg = scene.add.image(0, 0, bodyKey).setScale(scale);

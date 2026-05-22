@@ -106,7 +106,12 @@ export default class BattleScene extends Phaser.Scene {
     this._spriteY     = 155;
 
     // ── Player panel ──────────────────────────────────────────────────────────
-    this._playerSprite = this.add.rectangle(this._playerHomeX, this._spriteY, 64, 64, 0x33aa55);
+    {
+      const k = `bug-body-${playerDeck[0]?.parts?.body ?? 1}`;
+      this._playerSprite = this.textures.exists(k)
+        ? this.add.image(this._playerHomeX, this._spriteY, k).setScale(0.5)
+        : this.add.rectangle(this._playerHomeX, this._spriteY, 128, 128, 0x33aa55);
+    }
     this._playerName   = this.add.text(16, 68, '', {
       fontSize: '17px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
     });
@@ -137,7 +142,12 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     // ── Enemy panel ───────────────────────────────────────────────────────────
-    this._enemySprite = this.add.rectangle(this._enemyHomeX, this._spriteY, 64, 64, 0xaa3333);
+    {
+      const k = `bug-body-${this.battleSystem.enemyHand[0]?.parts?.body ?? 1}`;
+      this._enemySprite = this.textures.exists(k)
+        ? this.add.image(this._enemyHomeX, this._spriteY, k).setScale(0.5).setFlipX(true)
+        : this.add.rectangle(this._enemyHomeX, this._spriteY, 128, 128, 0xaa3333);
+    }
     this._enemyName   = this.add.text(width - 16, 68, '', {
       fontSize: '17px', color: '#ff8888', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(1, 0);
@@ -876,6 +886,10 @@ export default class BattleScene extends Phaser.Scene {
       this._playerName.setText(player.name);
       this._playerStats.setText(`ATK ${ps.atk}  DEF ${ps.def}  SPD ${ps.spd}`);
       this._setHpBar(this._playerHpFill, this._playerHpText, player.currentHP, ps.hp);
+      if (this._playerSprite.setTexture) {
+        const bk = `bug-body-${player.parts?.body ?? 1}`;
+        if (this.textures.exists(bk)) this._playerSprite.setTexture(bk);
+      }
       this._playerSprite.setVisible(true);
     } else {
       this._playerName.setText('\u2014');
@@ -890,6 +904,10 @@ export default class BattleScene extends Phaser.Scene {
       this._enemyName.setText(enemy.name);
       this._enemyStats.setText(`ATK ${es.atk}  DEF ${es.def}  SPD ${es.spd}`);
       this._setHpBar(this._enemyHpFill, this._enemyHpText, enemy.currentHP, es.hp);
+      if (this._enemySprite.setTexture) {
+        const bk = `bug-body-${enemy.parts?.body ?? 1}`;
+        if (this.textures.exists(bk)) this._enemySprite.setTexture(bk);
+      }
       this._enemySprite.setVisible(true);
     } else {
       this._enemyName.setText('\u2014');

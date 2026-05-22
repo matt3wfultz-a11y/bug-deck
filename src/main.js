@@ -10,6 +10,7 @@ import FarmScene         from './scenes/FarmScene.js';
 import BreedingScene     from './scenes/BreedingScene.js';
 import ShopScene         from './scenes/ShopScene.js';
 import { creatures } from './data/creatures.js';
+import { fetchSvgData } from './art/SvgParts.js';
 
 // Expose to window for console testing
 window.Creature     = Creature;
@@ -30,4 +31,12 @@ window.main = function () {
   return new Phaser.Game(config);
 };
 
-window.main();
+// Fetch all SVG part data before starting Phaser so registerSvgTextures() works synchronously
+(async () => {
+  try {
+    await fetchSvgData();
+  } catch (e) {
+    console.warn('SvgParts: could not fetch SVG assets, bug sprites will use fallback rectangles.', e);
+  }
+  window.main();
+})();

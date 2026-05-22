@@ -1,4 +1,5 @@
 import { creatures as creatureData, SPECIAL_POOLS } from '../data/creatures.js';
+import { PART_COUNTS } from '../art/SvgParts.js';
 
 // Syllable pools by archetype
 const SYLLABLES = {
@@ -24,6 +25,7 @@ export default class Creature {
     this.special   = data.special ?? null;
     this.level     = level;
     this.parentIds = parentIds;
+    this.parts     = data.parts ?? { body: 1, head: 1, legs: 1, wings: 0 };
     // Base stats stored for scaling
     this._baseHp  = data.baseHp;
     this._baseAtk = data.baseAtk;
@@ -103,7 +105,23 @@ export default class Creature {
     const cap = v => Math.min(100, Math.max(1, Math.floor(v) + generation));
 
     // Pick archetype from one parent at random
-    const archetype = Math.random() < 0.5 ? p1.archetype : p2.archetype;
+    let archetype = Math.random() < 0.5 ? p1.archetype : p2.archetype;
+
+    // Average parts numerically, clamped to valid ranges
+    const p1Parts = p1.parts ?? { body: 1, head: 1, legs: 1, wings: 0 };
+    const p2Parts = p2.parts ?? { body: 1, head: 1, legs: 1, wings: 0 };
+
+    const offspringParts = {
+      body:  Math.max(1, Math.min(PART_COUNTS.body,  Math.round((p1Parts.body  + p2Parts.body)  / 2))),
+      head:  Math.max(1, Math.min(PART_COUNTS.head,  Math.round((p1Parts.head  + p2Parts.head)  / 2))),
+      legs:  Math.max(1, Math.min(PART_COUNTS.legs,  Math.round((p1Parts.legs  + p2Parts.legs)  / 2))),
+      wings: Math.max(0, Math.min(PART_COUNTS.wings, Math.round((p1Parts.wings + p2Parts.wings) / 2))),
+    };
+
+    // If offspring has wings and archetype is not already Flying, override to Flying
+    if (offspringParts.wings > 0 && archetype !== 'Flying') {
+      archetype = 'Flying';
+    }
 
     // Pick a random template from that archetype (for id/ability)
     const pool     = creatureData.filter(c => c.archetype === archetype);
@@ -121,6 +139,7 @@ export default class Creature {
       archetype: template.archetype,
       ability:   template.ability,
       special,
+      parts:     offspringParts,
       baseHp:  cap(avg(p1s.hp,  p2s.hp)),
       baseAtk: cap(avg(p1s.atk, p2s.atk)),
       baseDef: cap(avg(p1s.def, p2s.def)),

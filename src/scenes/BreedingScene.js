@@ -1,5 +1,4 @@
 import GameState from '../systems/GameState.js';
-import { registerSvgTextures, createBugContainer, destroyBugContainer } from '../art/SvgParts.js';
 
 // Card geometry (matches FarmScene)
 const CARD_W   = 176;
@@ -17,10 +16,6 @@ const BREED_COST  = 50;
 export default class BreedingScene extends Phaser.Scene {
   constructor() {
     super('BreedingScene');
-  }
-
-  preload() {
-    registerSvgTextures(this);
   }
 
   create() {
@@ -61,14 +56,7 @@ export default class BreedingScene extends Phaser.Scene {
   // ── Grid ─────────────────────────────────────────────────────────────────
 
   _clearGrid() {
-    this._cards.forEach(o => {
-      if (typeof o.getAll === 'function') {
-        // It's a Container (bug sprite) — destroy children too
-        destroyBugContainer(o);
-      } else {
-        o.destroy();
-      }
-    });
+    this._cards.forEach(o => o.destroy());
     this._cards = [];
   }
 
@@ -140,18 +128,6 @@ export default class BreedingScene extends Phaser.Scene {
       { fontSize: '8px', color: '#aa44aa', fontFamily: 'monospace' }
     ).setOrigin(0.5, 0);
     this._cards.push(spText);
-
-    // Bug thumbnail (bottom-right area of the card)
-    if (creature.parts && this.textures.exists('bug-body-1')) {
-      const bugThumb = createBugContainer(
-        this,
-        cx + CARD_W - 28,
-        cy + CARD_H - 24,
-        creature.parts,
-        0.2
-      );
-      this._cards.push(bugThumb);
-    }
 
     // Generation badge
     const gen = creature.generation ?? 0;

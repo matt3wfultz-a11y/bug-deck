@@ -3,7 +3,7 @@ import BattleSystem, { ADVANTAGE } from '../systems/BattleSystem.js';
 import BattleQueue      from '../systems/BattleQueue.js';
 import GameState        from '../systems/GameState.js';
 import { creatures as creatureData } from '../data/creatures.js';
-import { registerSvgTextures, createBugContainer, destroyBugContainer, randomParts } from '../art/SvgParts.js';
+import { registerSvgTextures } from '../art/SvgParts.js';
 
 const BAR_W          = 200;
 const BAR_H          = 12;
@@ -106,7 +106,7 @@ export default class BattleScene extends Phaser.Scene {
     this._spriteY     = 155;
 
     // ── Player panel ──────────────────────────────────────────────────────────
-    this._playerSprite = this._makeBugContainer(playerDeck[0], this._playerHomeX, this._spriteY);
+    this._playerSprite = this.add.rectangle(this._playerHomeX, this._spriteY, 64, 64, 0x33aa55);
     this._playerName   = this.add.text(16, 68, '', {
       fontSize: '17px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
     });
@@ -137,7 +137,7 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     // ── Enemy panel ───────────────────────────────────────────────────────────
-    this._enemySprite = this._makeBugContainer(enemyDeck[0], this._enemyHomeX, this._spriteY);
+    this._enemySprite = this.add.rectangle(this._enemyHomeX, this._spriteY, 64, 64, 0xaa3333);
     this._enemyName   = this.add.text(width - 16, 68, '', {
       fontSize: '17px', color: '#ff8888', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(1, 0);
@@ -235,53 +235,6 @@ export default class BattleScene extends Phaser.Scene {
     // ── Hand UI ───────────────────────────────────────────────────────────────
     this._buildHandUI();
     this._startTurn();
-  }
-
-  // ── Bug sprite helpers ────────────────────────────────────────────────────
-
-  /**
-   * Returns the parts for a creature, generating random ones as a fallback.
-   */
-  _resolveParts(creature) {
-    if (creature.parts) return creature.parts;
-    return randomParts(creature.archetype);
-  }
-
-  /**
-   * Creates a bug container at (x, y) for the given creature.
-   * Falls back to a plain rectangle if SVG textures aren't loaded.
-   */
-  _makeBugContainer(creature, x, y) {
-    const parts = this._resolveParts(creature);
-    // Check if any bug textures are available
-    if (this.textures.exists('bug-body-1')) {
-      return createBugContainer(this, x, y, parts, 0.5);
-    }
-    // Fallback: colored rectangle
-    const color = creature.archetype === 'Flying' ? 0x33aa55
-                : creature.archetype === 'Ground'  ? 0x997733
-                : 0x3366aa;
-    return this.add.rectangle(x, y, 64, 64, color);
-  }
-
-  /**
-   * Replaces the player sprite container with one matching the given creature.
-   */
-  _updatePlayerSprite(creature) {
-    const wasVisible = this._playerSprite?.visible ?? true;
-    destroyBugContainer(this._playerSprite);
-    this._playerSprite = this._makeBugContainer(creature, this._playerHomeX, this._spriteY);
-    this._playerSprite.setVisible(wasVisible);
-  }
-
-  /**
-   * Replaces the enemy sprite container with one matching the given creature.
-   */
-  _updateEnemySprite(creature) {
-    const wasVisible = this._enemySprite?.visible ?? true;
-    destroyBugContainer(this._enemySprite);
-    this._enemySprite = this._makeBugContainer(creature, this._enemyHomeX, this._spriteY);
-    this._enemySprite.setVisible(wasVisible);
   }
 
   // ── Turn lifecycle ────────────────────────────────────────────────────────
@@ -818,10 +771,10 @@ export default class BattleScene extends Phaser.Scene {
       const statsText = this.add.text(cx + HC_W / 2, cy + 54, '', {
         fontSize: '9px', color: '#cccccc', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
-      const abilText  = this.add.text(cx + HC_W / 2, cy + 68, '', {
-        fontSize: '8px', color: '#554466', fontFamily: 'monospace',
-        wordWrap: { width: HC_W - 8 },
-      }).setOrigin(0.5, 0);
+      const bodyKey = `bug-body-${this._deckRoster[i]?.parts?.body ?? 1}`;
+      const bugImg  = this.textures.exists(bodyKey)
+        ? this.add.image(cx + HC_W / 2, cy + 96, bodyKey).setScale(0.25)
+        : null;
       const statusText = this.add.text(cx + HC_W / 2, cy + HC_H - 22, '', {
         fontSize: '10px', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
@@ -847,7 +800,7 @@ export default class BattleScene extends Phaser.Scene {
       });
 
       this._handCards.push({ cx, cy, bg, border, nameText, archText,
-        hpBarBg, hpBarFill, hpText, statsText, abilText, statusText, hit });
+        hpBarBg, hpBarFill, hpText, statsText, bugImg, statusText, hit });
     }
   }
 
@@ -895,7 +848,11 @@ export default class BattleScene extends Phaser.Scene {
       .setColor(isDead ? '#441111' : '#aaffaa').setAlpha(alpha);
 
     card.statsText.setText(`ATK:${stats.atk}  DEF:${stats.def}  SPD:${stats.spd}`).setAlpha(alpha);
-    card.abilText.setText(`\u2726 ${creature.ability.name}`).setAlpha(isDead ? 0.2 : 0.6);
+    if (card.bugImg) {
+      const bk = `bug-body-${creature.parts?.body ?? 1}`;
+      if (this.textures.exists(bk)) card.bugImg.setTexture(bk);
+      card.bugImg.setAlpha(isDead ? 0.25 : 1);
+    }
 
     if (isActive)       card.statusText.setText('\u25b2 ACTIVE').setColor('#5588cc');
     else if (isDead)    card.statusText.setText('\u2715 FAINTED').setColor('#442222');
@@ -923,11 +880,6 @@ export default class BattleScene extends Phaser.Scene {
       this._playerName.setText(player.name);
       this._playerStats.setText(`ATK ${ps.atk}  DEF ${ps.def}  SPD ${ps.spd}`);
       this._setHpBar(this._playerHpFill, this._playerHpText, player.currentHP, ps.hp);
-      // Rebuild sprite if the active creature changed
-      if (this._lastPlayerCreature !== player) {
-        this._updatePlayerSprite(player);
-        this._lastPlayerCreature = player;
-      }
       this._playerSprite.setVisible(true);
     } else {
       this._playerName.setText('\u2014');
@@ -942,11 +894,6 @@ export default class BattleScene extends Phaser.Scene {
       this._enemyName.setText(enemy.name);
       this._enemyStats.setText(`ATK ${es.atk}  DEF ${es.def}  SPD ${es.spd}`);
       this._setHpBar(this._enemyHpFill, this._enemyHpText, enemy.currentHP, es.hp);
-      // Rebuild sprite if the active enemy changed
-      if (this._lastEnemyCreature !== enemy) {
-        this._updateEnemySprite(enemy);
-        this._lastEnemyCreature = enemy;
-      }
       this._enemySprite.setVisible(true);
     } else {
       this._enemyName.setText('\u2014');

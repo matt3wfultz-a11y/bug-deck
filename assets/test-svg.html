@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head><style>body{background:#1a1a2e;display:flex;flex-wrap:wrap;gap:8px;padding:16px;}</style></head>
+<body>
+<script>
+const parts = ['body-1','body-2','body-3','body-4','head-1','head-2','legs-1','wings-1'];
+parts.forEach(p => {
+  const img = document.createElement('img');
+  img.src = `assets/parts/${p}.svg`;
+  img.width = 128; img.height = 128;
+  img.title = p;
+  img.onerror = () => { img.style.border = '2px solid red'; img.title = `FAILED: ${p}`; };
+  document.body.appendChild(img);
+});
+</script>
+</body>
+</html>

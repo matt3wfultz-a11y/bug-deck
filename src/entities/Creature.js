@@ -111,12 +111,10 @@ export default class Creature {
     const p1Parts = p1.parts ?? { body: 1, head: 1, legs: 1, wings: 0 };
     const p2Parts = p2.parts ?? { body: 1, head: 1, legs: 1, wings: 0 };
 
-    const offspringParts = {
-      body:  Math.max(1, Math.min(PART_COUNTS.body,  Math.round((p1Parts.body  + p2Parts.body)  / 2))),
-      head:  Math.max(1, Math.min(PART_COUNTS.head,  Math.round((p1Parts.head  + p2Parts.head)  / 2))),
-      legs:  Math.max(1, Math.min(PART_COUNTS.legs,  Math.round((p1Parts.legs  + p2Parts.legs)  / 2))),
-      wings: Math.max(0, Math.min(PART_COUNTS.wings, Math.round((p1Parts.wings + p2Parts.wings) / 2))),
-    };
+    // Average the variant number (body=head=legs must stay in sync)
+    const v = Math.max(1, Math.min(PART_COUNTS.body, Math.round((p1Parts.body + p2Parts.body) / 2)));
+    const wingsVal = Math.max(0, Math.min(PART_COUNTS.wings, Math.round((p1Parts.wings + p2Parts.wings) / 2)));
+    const offspringParts = { body: v, head: v, legs: v, wings: wingsVal };
 
     // If offspring has wings and archetype is not already Flying, override to Flying
     if (offspringParts.wings > 0 && archetype !== 'Flying') {

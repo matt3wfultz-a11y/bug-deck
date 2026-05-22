@@ -109,8 +109,8 @@ export default class BattleScene extends Phaser.Scene {
     {
       const k = `bug-body-${playerDeck[0]?.parts?.body ?? 1}`;
       this._playerSprite = this.textures.exists(k)
-        ? this.add.image(this._playerHomeX, this._spriteY, k).setScale(0.5)
-        : this.add.rectangle(this._playerHomeX, this._spriteY, 128, 128, 0x33aa55);
+        ? this.add.image(this._playerHomeX, this._spriteY, k).setScale(1.0)
+        : this.add.rectangle(this._playerHomeX, this._spriteY, 256, 256, 0x33aa55);
     }
     this._playerName   = this.add.text(16, 68, '', {
       fontSize: '17px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
@@ -145,8 +145,8 @@ export default class BattleScene extends Phaser.Scene {
     {
       const k = `bug-body-${this.battleSystem.enemyHand[0]?.parts?.body ?? 1}`;
       this._enemySprite = this.textures.exists(k)
-        ? this.add.image(this._enemyHomeX, this._spriteY, k).setScale(0.5).setFlipX(true)
-        : this.add.rectangle(this._enemyHomeX, this._spriteY, 128, 128, 0xaa3333);
+        ? this.add.image(this._enemyHomeX, this._spriteY, k).setScale(1.0).setFlipX(true)
+        : this.add.rectangle(this._enemyHomeX, this._spriteY, 256, 256, 0xaa3333);
     }
     this._enemyName   = this.add.text(width - 16, 68, '', {
       fontSize: '17px', color: '#ff8888', fontFamily: 'monospace', fontStyle: 'bold',

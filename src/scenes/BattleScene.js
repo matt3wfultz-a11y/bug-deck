@@ -3,7 +3,7 @@ import BattleSystem, { ADVANTAGE } from '../systems/BattleSystem.js';
 import BattleQueue      from '../systems/BattleQueue.js';
 import GameState        from '../systems/GameState.js';
 import { creatures as creatureData } from '../data/creatures.js';
-import { registerSvgTextures } from '../art/SvgParts.js';
+import { registerSvgTextures, createBugContainer, destroyBugContainer } from '../art/SvgParts.js';
 
 const BAR_W          = 200;
 const BAR_H          = 12;
@@ -106,12 +106,7 @@ export default class BattleScene extends Phaser.Scene {
     this._spriteY     = 155;
 
     // ── Player panel ──────────────────────────────────────────────────────────
-    {
-      const k = `bug-body-${playerDeck[0]?.parts?.body ?? 1}`;
-      this._playerSprite = this.textures.exists(k)
-        ? this.add.image(this._playerHomeX, this._spriteY, k).setScale(1.0)
-        : this.add.rectangle(this._playerHomeX, this._spriteY, 256, 256, 0x33aa55);
-    }
+    this._playerSprite = createBugContainer(this, this._playerHomeX, this._spriteY, playerDeck[0]?.parts, 1.0);
     this._playerName   = this.add.text(16, 68, '', {
       fontSize: '17px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
     });
@@ -142,12 +137,8 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     // ── Enemy panel ───────────────────────────────────────────────────────────
-    {
-      const k = `bug-body-${this.battleSystem.enemyHand[0]?.parts?.body ?? 1}`;
-      this._enemySprite = this.textures.exists(k)
-        ? this.add.image(this._enemyHomeX, this._spriteY, k).setScale(1.0).setFlipX(true)
-        : this.add.rectangle(this._enemyHomeX, this._spriteY, 256, 256, 0xaa3333);
-    }
+    this._enemySprite = createBugContainer(this, this._enemyHomeX, this._spriteY, this.battleSystem.enemyHand[0]?.parts, 1.0);
+    this._enemySprite.setScale(-1.0, 1.0); // flip horizontally
     this._enemyName   = this.add.text(width - 16, 68, '', {
       fontSize: '17px', color: '#ff8888', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(1, 0);
@@ -886,9 +877,10 @@ export default class BattleScene extends Phaser.Scene {
       this._playerName.setText(player.name);
       this._playerStats.setText(`ATK ${ps.atk}  DEF ${ps.def}  SPD ${ps.spd}`);
       this._setHpBar(this._playerHpFill, this._playerHpText, player.currentHP, ps.hp);
-      if (this._playerSprite.setTexture) {
-        const bk = `bug-body-${player.parts?.body ?? 1}`;
-        if (this.textures.exists(bk)) this._playerSprite.setTexture(bk);
+      if (this._lastPlayerParts !== player.parts) {
+        destroyBugContainer(this._playerSprite);
+        this._playerSprite = createBugContainer(this, this._playerHomeX, this._spriteY, player.parts, 1.0);
+        this._lastPlayerParts = player.parts;
       }
       this._playerSprite.setVisible(true);
     } else {
@@ -904,9 +896,11 @@ export default class BattleScene extends Phaser.Scene {
       this._enemyName.setText(enemy.name);
       this._enemyStats.setText(`ATK ${es.atk}  DEF ${es.def}  SPD ${es.spd}`);
       this._setHpBar(this._enemyHpFill, this._enemyHpText, enemy.currentHP, es.hp);
-      if (this._enemySprite.setTexture) {
-        const bk = `bug-body-${enemy.parts?.body ?? 1}`;
-        if (this.textures.exists(bk)) this._enemySprite.setTexture(bk);
+      if (this._lastEnemyParts !== enemy.parts) {
+        destroyBugContainer(this._enemySprite);
+        this._enemySprite = createBugContainer(this, this._enemyHomeX, this._spriteY, enemy.parts, 1.0);
+        this._enemySprite.setScale(-1.0, 1.0);
+        this._lastEnemyParts = enemy.parts;
       }
       this._enemySprite.setVisible(true);
     } else {

@@ -769,10 +769,9 @@ export default class BattleScene extends Phaser.Scene {
       const hpText    = this.add.text(cx + HC_W / 2, cy + 40, '', {
         fontSize: '9px', color: '#aaffaa', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
-      const bodyKey = `bug-body-${this._deckRoster[i]?.parts?.body ?? 1}`;
-      const bugImg  = this.textures.exists(bodyKey)
-        ? this.add.image(cx + HC_W / 2, cy + 97, bodyKey).setScale(0.45)
-        : null;
+      const bugContainer = createBugContainer(
+        this, cx + HC_W / 2, cy + 88, this._deckRoster[i]?.parts, 0.38
+      );
       const statusText = this.add.text(cx + HC_W / 2, cy + HC_H - 22, '', {
         fontSize: '10px', fontFamily: 'monospace',
       }).setOrigin(0.5, 0);
@@ -798,7 +797,7 @@ export default class BattleScene extends Phaser.Scene {
       });
 
       this._handCards.push({ cx, cy, bg, border, nameText, archText,
-        hpBarBg, hpBarFill, hpText, bugImg, statusText, hit });
+        hpBarBg, hpBarFill, hpText, bugContainer, statusText, hit });
     }
   }
 
@@ -845,10 +844,8 @@ export default class BattleScene extends Phaser.Scene {
       .setText(isDead ? 'FAINTED' : `${Math.max(0, creature.currentHP)}/${stats.hp}`)
       .setColor(isDead ? '#441111' : '#aaffaa').setAlpha(alpha);
 
-    if (card.bugImg) {
-      const bk = `bug-body-${creature.parts?.body ?? 1}`;
-      if (this.textures.exists(bk)) card.bugImg.setTexture(bk);
-      card.bugImg.setAlpha(isDead ? 0.25 : 1);
+    if (card.bugContainer) {
+      card.bugContainer.setAlpha(isDead ? 0.25 : 1);
     }
 
     if (isActive)       card.statusText.setText('\u25b2 ACTIVE').setColor('#5588cc');

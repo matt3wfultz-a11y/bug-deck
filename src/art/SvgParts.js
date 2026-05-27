@@ -6,7 +6,7 @@ const PART_KEYS = [
   'bug-body-1', 'bug-body-2', 'bug-body-3', 'bug-body-4',
   'bug-head-1', 'bug-head-2', 'bug-head-3', 'bug-head-4',
   'bug-legs-1', 'bug-legs-2', 'bug-legs-3', 'bug-legs-4',
-  'bug-wings-1',
+  'bug-wings',
 ];
 
 export const PART_COUNTS = { body: 4, head: 4, legs: 4, wings: 1 };
@@ -18,35 +18,29 @@ export const PART_COUNTS = { body: 4, head: 4, legs: 4, wings: 1 };
 export function registerSvgTextures(scene) {
   for (const key of PART_KEYS) {
     if (!scene.textures.exists(key)) {
-      // key format: 'bug-body-1' -> 'assets/parts/body-1.svg'
-      const file = key.replace('bug-', '') + '.svg';
-      scene.load.svg(key, `assets/parts/${file}`, SVG_SIZE);
+      // 'bug-body-1' -> 'assets/Bug-parts-body-1.svg'
+      // 'bug-wings'  -> 'assets/Bug-parts-wings.svg'
+      const file = key.replace('bug-', 'Bug-parts-') + '.svg';
+      scene.load.svg(key, `assets/${file}`, SVG_SIZE);
     }
   }
 }
 
 /**
- * No-op kept for API compatibility — splitting is now done at build time.
+ * No-op kept for API compatibility.
  */
 export async function fetchSvgData() {}
 
 /**
  * Creates a Phaser Container compositing the bug part layers.
  * Draw order: wings (behind body), body, legs, head (on top).
- *
- * @param {Phaser.Scene} scene
- * @param {number} x
- * @param {number} y
- * @param {{ body: number, head: number, legs: number, wings: number }} parts
- * @param {number} [scale=0.5]  — renders 128px from the 256px viewBox
- * @returns {Phaser.GameObjects.Container}
  */
 export function createBugContainer(scene, x, y, parts, scale = 0.5) {
   const p = parts ?? { body: 1, head: 1, legs: 1, wings: 0 };
   const container = scene.add.container(x, y);
 
   const layers = [];
-  if (p.wings > 0) layers.push(`bug-wings-${p.wings}`);
+  if (p.wings > 0) layers.push('bug-wings');
   layers.push(`bug-body-${p.body}`);
   layers.push(`bug-legs-${p.legs}`);
   layers.push(`bug-head-${p.head}`);

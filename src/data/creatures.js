@@ -26,59 +26,85 @@ export const SPECIAL_POOLS = {
   ],
 };
 
+// Flying is not a species — it's a random trait rolled per individual bug.
+// A bug that rolls wings becomes Flying-type: it joins the triangle as
+// Flying, gets 4 stamina in battle, and its special rerolls from the
+// Flying pool (Wind/Lightning).
+export const FLYING_CHANCE = 0.35;
+
+/** Roll a wild individual from a species template: chance to gain wings + Flying type. */
+export function rollWildBug(template, rng = Math.random) {
+  const base = {
+    id: template.id, name: template.name, archetype: template.archetype,
+    ability: template.ability, attack: template.attack, special: template.special,
+    baseHp: template.baseHp, baseAtk: template.baseAtk,
+    baseDef: template.baseDef, baseSpd: template.baseSpd,
+    parts: { ...template.parts },
+  };
+  if (rng() >= FLYING_CHANCE) return base;
+
+  const spPool = SPECIAL_POOLS.Flying;
+  return {
+    ...base,
+    archetype: 'Flying',
+    parts:     { ...base.parts, wings: 1 },
+    special:   spPool[Math.floor(rng() * spPool.length)],
+  };
+}
+
 export const creatures = [
-  // ── Flying ──────────────────────────────────────────────────────────────
+  // ── Formerly-Flying species, now grounded base types ──────────────────────────────────────────────────────────────
   {
     id: 'dragonfly',
     name: 'Dragonfly',
-    archetype: 'Flying',
+    archetype: 'Water',
     baseHp: 20,
     baseAtk: 5,
     baseDef: 2,
     baseSpd: 8,
     attack:  { name: 'Skydart' },
     ability: { name: 'Aerial Dash', desc: 'Strike first regardless of speed order once per battle.' },
-    special: { name: 'Gale Slash', element: 'Wind', desc: 'Strikes twice. Wind tears through Water types (2× ADV).' },
-    parts: { body: 1, head: 1, legs: 1, wings: 1 },
+    special: { name: 'Tidal Wave', element: 'Tide', desc: 'Drains: heal half the damage dealt. Drowns Ground types (2× ADV).' },
+    parts: { body: 1, head: 1, legs: 1, wings: 0 },
   },
   {
     id: 'butterfly',
     name: 'Butterfly',
-    archetype: 'Flying',
+    archetype: 'Ground',
     baseHp: 16,
     baseAtk: 3,
     baseDef: 2,
     baseSpd: 7,
     attack:  { name: 'Dust Flick' },
     ability: { name: 'Scale Dust', desc: 'On hit, 30% chance to reduce enemy ATK by 1 for 2 turns.' },
-    special: { name: 'Cyclone Dust', element: 'Wind', desc: 'Strikes twice. A vortex of scales devastates Water types (2× ADV).' },
-    parts: { body: 2, head: 2, legs: 2, wings: 1 },
+    special: { name: 'Rumble Pulse', element: 'Earth', desc: 'Unblockable: DEF stance is ignored. Knocks Flying types down (2× ADV).' },
+    parts: { body: 2, head: 2, legs: 2, wings: 0 },
   },
   {
     id: 'bee',
     name: 'Bee',
-    archetype: 'Flying',
+    archetype: 'Ground',
     baseHp: 18,
     baseAtk: 6,
     baseDef: 2,
     baseSpd: 7,
     attack:  { name: 'Sting' },
     ability: { name: 'Sting', desc: 'Deal 2 bonus damage. Single use per battle.' },
-    special: { name: 'Thunder Sting', element: 'Lightning', desc: 'Stuns: -1 stamina next turn. Shocks Water types (2× ADV).' },
-    parts: { body: 3, head: 3, legs: 3, wings: 1 },
+    special: { name: 'Quake March', element: 'Earth', desc: 'Unblockable: DEF stance is ignored. Shakes Flying types from the sky (2× ADV).' },
+    parts: { body: 3, head: 3, legs: 3, wings: 0 },
   },
   {
     id: 'wasp',
     name: 'Wasp',
-    archetype: 'Flying',
+    archetype: 'Ground',
     baseHp: 19,
     baseAtk: 7,
     baseDef: 1,
     baseSpd: 8,
     attack:  { name: 'Needle Dive' },
     ability: { name: 'Venom Jab', desc: 'Poison target for 1 damage per turn for 3 turns.' },
-    special: { name: 'Storm Jab', element: 'Lightning', desc: 'Stuns: -1 stamina next turn. Electrifies Water types (2× ADV).' },
-    parts: { body: 4, head: 4, legs: 4, wings: 1 },
+    special: { name: 'Fault Leap', element: 'Earth', desc: 'Unblockable: DEF stance is ignored. Devastates Flying types (2× ADV).' },
+    parts: { body: 4, head: 4, legs: 4, wings: 0 },
   },
 
   // ── Ground ───────────────────────────────────────────────────────────────
@@ -147,7 +173,7 @@ export const creatures = [
     attack:  { name: 'Skim Strike' },
     ability: { name: 'Ripple Step', desc: 'Dodge the next attack (once per battle).' },
     special: { name: 'Tidal Wave', element: 'Tide', desc: 'Drains: heal half the damage dealt. Drowns Ground types (2× ADV).' },
-    parts: { body: 1, head: 1, legs: 1, wings: 1 },
+    parts: { body: 1, head: 1, legs: 1, wings: 0 },
   },
   {
     id: 'mosquito',

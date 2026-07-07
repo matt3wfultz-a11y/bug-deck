@@ -2,13 +2,14 @@ import Creature        from '../entities/Creature.js';
 import BattleSystem, { ADVANTAGE } from '../systems/BattleSystem.js';
 import BattleQueue      from '../systems/BattleQueue.js';
 import GameState        from '../systems/GameState.js';
-import { creatures as creatureData } from '../data/creatures.js';
+import { creatures as creatureData, rollWildBug } from '../data/creatures.js';
 import { registerSvgTextures, createBugContainer, destroyBugContainer } from '../art/SvgParts.js';
 import { registerCardTexture, createBugCard } from '../art/BugCard.js';
 
 const BAR_W          = 200;
 const BAR_H          = 12;
-const ALL_ARCHETYPES = ['Flying', 'Ground', 'Water'];
+// Species base types; Flying is a per-individual wing roll, not a species
+const BASE_ARCHETYPES = ['Ground', 'Water'];
 
 // Hand row: full card frames at battle scale (300×400 → 147×196)
 const HC_SCALE  = 0.49;
@@ -42,22 +43,20 @@ export default class BattleScene extends Phaser.Scene {
   create() {
     const { width, height } = this.scale;
 
-    const archetype   = GameState.selectedArchetype || 'Flying';
-    const enemyArch   = ALL_ARCHETYPES[Math.floor(Math.random() * ALL_ARCHETYPES.length)];
+    const enemyArch   = BASE_ARCHETYPES[Math.floor(Math.random() * BASE_ARCHETYPES.length)];
     const currentRound = (GameState.runFightWins ?? 0) + 1;
     const enemyLevel   = currentRound;
 
-    const buildFallback = arch => {
-      const pool = creatureData.filter(c => c.archetype === arch);
-      return Array.from({ length: 5 }, () =>
-        new Creature(pool[Math.floor(Math.random() * pool.length)], 1)
+    // Fallback deck: random wild individuals (each rolls the flying trait)
+    const buildFallback = () =>
+      Array.from({ length: 5 }, () =>
+        new Creature(rollWildBug(creatureData[Math.floor(Math.random() * creatureData.length)]), 1)
       );
-    };
 
     const deckData   = GameState.selectedDeck;
     const playerDeck = deckData.length > 0
       ? deckData.map(d => { const c = new Creature(d, 1); c._farmUid = d.uid || null; return c; })
-      : buildFallback(archetype);
+      : buildFallback();
 
     const enemyPool    = creatureData.filter(c => c.archetype === enemyArch);
     // Difficulty ramps through the run: bigger enemy crews and stronger stats
@@ -65,7 +64,8 @@ export default class BattleScene extends Phaser.Scene {
     const scaleFactor  = 1 + (currentRound - 1) * 0.15;        // +15% stats per round
     this._enemyTotal   = enemyCount;
     const enemyDeck = Array.from({ length: enemyCount }, () => {
-      const tmpl = enemyPool[Math.floor(Math.random() * enemyPool.length)];
+      // Each enemy is a wild individual: it may roll wings and fly
+      const tmpl = rollWildBug(enemyPool[Math.floor(Math.random() * enemyPool.length)]);
       const scaled = {
         ...tmpl,
         baseHp:  Math.round(tmpl.baseHp  * scaleFactor),

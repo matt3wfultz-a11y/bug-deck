@@ -208,7 +208,7 @@ export default class WorkshopScene extends Phaser.Scene {
     });
 
     this._editObjs.push(this.add.text(width / 2, 352 + SLOTS.length * 40,
-      `WINGS: ${this._parts.wings > 0 ? 'yes' : 'no'}  (set by archetype)`, {
+      `WINGS: ${this._parts.wings > 0 ? 'yes' : 'no'}  (natural trait — rolled at birth)`, {
       fontSize: '11px', color: '#444466', fontFamily: 'monospace',
     }).setOrigin(0.5));
 

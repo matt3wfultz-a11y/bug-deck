@@ -14,7 +14,7 @@ Then open http://localhost:3456 in a browser. Phaser is vendored in `vendor/`, s
 
 ## Game loop
 
-1. **Build your deck** — pick up to 5 bugs from the three archetypes (or from your farm) and up to 3 items.
+1. **Build your deck** — pick up to 5 bugs from this visit's wild offers (or from your farm) and up to 3 items. Species come in Ground and Water base types, and every individual bug — offers, enemies, hybrids — rolls a ~35% chance to have wings.
 2. **Battle map** — each round, choose a node: **Fight**, **Shop**, or **Breeding**.
 3. **Fight** — queued simultaneous combat. Each turn you spend stamina to queue actions (**ATK**, **DEF**, **SPECIAL** for 2, **ITEM**, **SWAP**), then hit **END** and both sides resolve slot by slot. Flying bugs get 4 stamina; Ground and Water get 3.
 4. **Capture** — after every victory one of the defeated enemies is weakened and catchable. Swing your net (click) at the bug as it darts around the arena — faster bugs (higher SPD) are harder to pin down. You get 3 swings, +1 per Jar owned (max +2). Catch it and add it to your **hand** (joins the current run) or send it to the **farm** (kept forever) — or miss every swing and watch it escape. Wins also pay out gold.
@@ -23,6 +23,8 @@ Then open http://localhost:3456 in a browser. Phaser is vendored in `vendor/`, s
 ### Archetype triangle
 
 **Flying → Water → Ground → Flying** — advantage gives 1.5× damage on attacks and 2× on specials.
+
+Flying is not a species: it's a wing trait rolled per individual. A bug that rolls wings becomes Flying-type — it joins the triangle as Flying, gets 4 stamina in battle instead of 3, and its special rerolls from the Flying pool (Wind/Lightning). Breeding passes wings down like any other part, so a winged lineage can be cultivated.
 
 ### Cards & special attacks
 

@@ -1,5 +1,5 @@
 import GameState from '../systems/GameState.js';
-import { creatures as creatureData } from '../data/creatures.js';
+import { creatures as creatureData, rollWildBug } from '../data/creatures.js';
 import { registerSvgTextures } from '../art/SvgParts.js';
 import { registerCardTexture, createBugCard } from '../art/BugCard.js';
 
@@ -50,10 +50,18 @@ export default class DeckBuilderScene extends Phaser.Scene {
   create() {
     const { width } = this.scale;
 
-    this._tab      = GameState.selectedArchetype || 'Flying';
+    this._tab      = ['Ground', 'Water', 'Farm'].includes(GameState.selectedArchetype)
+      ? GameState.selectedArchetype : 'Ground';
     this._deck     = [];   // array of creature plain-data objects (max 5)
     this._gridObjs = [];
-    this._farmPage = 0;
+    this._page     = 0;
+
+    // Wild offers for this visit: each species rolls whether this individual
+    // has wings (Flying trait). Rolled once per deck-builder visit.
+    this._offers = {
+      Ground: creatureData.filter(c => c.archetype === 'Ground').map(c => rollWildBug(c)),
+      Water:  creatureData.filter(c => c.archetype === 'Water').map(c => rollWildBug(c)),
+    };
 
     // ── Header ────────────────────────────────────────────────────────────────
     this.add.rectangle(width / 2, 0, width, 58, 0x0d0d1a).setOrigin(0.5, 0);
@@ -66,7 +74,7 @@ export default class DeckBuilderScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // ── Filter tabs ───────────────────────────────────────────────────────────
-    const TABS    = ['Flying', 'Ground', 'Water', 'Farm'];
+    const TABS    = ['Ground', 'Water', 'Farm'];
     const tabW    = 136;
     const tabGap  = 12;
     const tabsTot = TABS.length * tabW + (TABS.length - 1) * tabGap;
@@ -182,20 +190,14 @@ export default class DeckBuilderScene extends Phaser.Scene {
 
   _getPool() {
     if (this._tab === 'Farm') return GameState.getFarm();
-    return creatureData
-      .filter(c => c.archetype === this._tab)
-      .map(c => ({
-        id: c.id, name: c.name, archetype: c.archetype, ability: c.ability, special: c.special,
-        parts: c.parts,
-        baseHp: c.baseHp, baseAtk: c.baseAtk, baseDef: c.baseDef, baseSpd: c.baseSpd,
-      }));
+    return this._offers[this._tab] ?? [];
   }
 
   // ── Tab ───────────────────────────────────────────────────────────────────
 
   _switchTab(tab) {
-    this._tab      = tab;
-    this._farmPage = 0;
+    this._tab  = tab;
+    this._page = 0;
     this._clearGrid();
     this._buildGrid();
     this._refreshTabs();
@@ -231,13 +233,10 @@ export default class DeckBuilderScene extends Phaser.Scene {
       return;
     }
 
-    // One row of full cards; Farm paginates 5 per page
-    const isFarm     = this._tab === 'Farm';
-    const totalPages = isFarm ? Math.max(1, Math.ceil(pool.length / FARM_PER_PAGE)) : 1;
-    this._farmPage   = Math.min(this._farmPage, totalPages - 1);
-    const slice = isFarm
-      ? pool.slice(this._farmPage * FARM_PER_PAGE, this._farmPage * FARM_PER_PAGE + FARM_PER_PAGE)
-      : pool.slice(0, FARM_PER_PAGE);
+    // One row of full cards, paginated 5 per page
+    const totalPages = Math.max(1, Math.ceil(pool.length / FARM_PER_PAGE));
+    this._page = Math.min(this._page, totalPages - 1);
+    const slice = pool.slice(this._page * FARM_PER_PAGE, this._page * FARM_PER_PAGE + FARM_PER_PAGE);
 
     const rowW = slice.length * CARD_W + (slice.length - 1) * GRID_GAP;
     const x0   = (width - rowW) / 2;
@@ -247,19 +246,19 @@ export default class DeckBuilderScene extends Phaser.Scene {
       this._buildCard(creature, cx, GRID_Y);
     });
 
-    if (isFarm && totalPages > 1) {
+    if (totalPages > 1) {
       const navY = GRID_Y + CARD_H + 14;
-      if (this._farmPage > 0) {
+      if (this._page > 0) {
         this._gridObjs.push(this._makePageBtn(width / 2 - 90, navY, '< PREV', () => {
-          this._farmPage--; this._clearGrid(); this._buildGrid();
+          this._page--; this._clearGrid(); this._buildGrid();
         }));
       }
-      if (this._farmPage < totalPages - 1) {
+      if (this._page < totalPages - 1) {
         this._gridObjs.push(this._makePageBtn(width / 2 + 90, navY, 'NEXT >', () => {
-          this._farmPage++; this._clearGrid(); this._buildGrid();
+          this._page++; this._clearGrid(); this._buildGrid();
         }));
       }
-      this._gridObjs.push(this.add.text(width / 2, navY, `${this._farmPage + 1} / ${totalPages}`, {
+      this._gridObjs.push(this.add.text(width / 2, navY, `${this._page + 1} / ${totalPages}`, {
         fontSize: '12px', color: '#445566', fontFamily: 'monospace',
       }).setOrigin(0.5));
     }
@@ -404,7 +403,7 @@ export default class DeckBuilderScene extends Phaser.Scene {
     GameState.deployFromFarm(farmPicks);
     GameState.selectedDeck      = [...this._deck];
     GameState.selectedItems     = this._items.filter(Boolean);
-    GameState.selectedArchetype = this._tab !== 'Farm' ? this._tab : (this._deck[0]?.archetype ?? 'Flying');
+    GameState.selectedArchetype = this._tab !== 'Farm' ? this._tab : (this._deck[0]?.archetype ?? 'Ground');
     GameState.runFightWins      = 0;
     GameState.saveGame();
     this.scene.start('MapScene');

@@ -107,9 +107,6 @@ export default class Creature {
     const avg = (a, b) => (a + b) / 2;
     const cap = v => Math.min(100, Math.max(1, Math.floor(v) + generation));
 
-    // Pick archetype from one parent at random
-    let archetype = Math.random() < 0.5 ? p1.archetype : p2.archetype;
-
     // Parts are interchangeable: each part is inherited independently from a
     // random parent, with a small chance to mutate into any variant.
     const p1Parts = p1.parts ?? { body: 1, head: 1, legs: 1, wings: 0 };
@@ -128,13 +125,23 @@ export default class Creature {
       wings: Math.random() < 0.5 ? p1Parts.wings : p2Parts.wings,
     };
 
-    // If offspring has wings and archetype is not already Flying, override to Flying
-    if (offspringParts.wings > 0 && archetype !== 'Flying') {
+    // Flying is a wing trait, not a species: winged offspring are Flying-type;
+    // wingless offspring take a grounded parent's type.
+    let archetype;
+    if (offspringParts.wings > 0) {
       archetype = 'Flying';
+    } else {
+      const grounded = [p1.archetype, p2.archetype].filter(a => a !== 'Flying');
+      archetype = grounded.length > 0
+        ? grounded[Math.floor(Math.random() * grounded.length)]
+        : (Math.random() < 0.5 ? 'Ground' : 'Water');
     }
 
-    // Pick a random template from that archetype (for id/ability)
-    const pool     = creatureData.filter(c => c.archetype === archetype);
+    // Pick a random species template (for id/ability); no species is Flying,
+    // so winged offspring draw from the whole roster
+    const pool = archetype === 'Flying'
+      ? creatureData
+      : creatureData.filter(c => c.archetype === archetype);
     const template = pool[Math.floor(Math.random() * pool.length)];
 
     // Randomly mutate special from the archetype's pool
@@ -146,7 +153,7 @@ export default class Creature {
     const offspringData = {
       id:        template.id,
       name:      offspringName,
-      archetype: template.archetype,
+      archetype,
       ability:   template.ability,
       special,
       parts:     offspringParts,

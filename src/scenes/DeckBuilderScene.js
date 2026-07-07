@@ -178,6 +178,7 @@ export default class DeckBuilderScene extends Phaser.Scene {
       .filter(c => c.archetype === this._tab)
       .map(c => ({
         id: c.id, name: c.name, archetype: c.archetype, ability: c.ability, special: c.special,
+        parts: c.parts,
         baseHp: c.baseHp, baseAtk: c.baseAtk, baseDef: c.baseDef, baseSpd: c.baseSpd,
       }));
   }

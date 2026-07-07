@@ -975,7 +975,10 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     if (this.battleSystem.playerWon()) {
-      this._statusText.setText('Victory!').setColor('#a8ff78');
+      const goldReward = 15 + (this._currentRound - 1) * 10;
+      GameState.currency += goldReward;
+      GameState.saveGame();
+      this._statusText.setText(`Victory!  +${goldReward}g`).setColor('#a8ff78');
       this.time.delayedCall(1400, () => {
         const capturable = this.battleSystem.getCapturableCreature();
         this.scene.start('CaptureScene', { capturable, returnToMap: true });

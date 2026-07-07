@@ -39,7 +39,7 @@ export default class MenuScene extends Phaser.Scene {
       nextY += 28;
 
       this._makeButton(width / 2, nextY, 'CONTINUE RUN', '#ffdd44', () => {
-        this.scene.start('DeckBuilderScene');
+        this.scene.start('MapScene');
       });
       nextY += 60;
     }

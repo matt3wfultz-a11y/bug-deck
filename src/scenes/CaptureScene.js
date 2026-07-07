@@ -1,8 +1,13 @@
 import GameState from '../systems/GameState.js';
+import { registerSvgTextures, createBugContainer } from '../art/SvgParts.js';
 
 export default class CaptureScene extends Phaser.Scene {
   constructor() {
     super('CaptureScene');
+  }
+
+  preload() {
+    registerSvgTextures(this);
   }
 
   init(data) {
@@ -47,8 +52,7 @@ export default class CaptureScene extends Phaser.Scene {
       this.add.rectangle(width / 2, cardY + cardH / 2, cardW, cardH, 0x2a2a50)
         .setOrigin(0.5).setFillStyle(0x111122).setStrokeStyle(1, 0x4444aa);
 
-      // Creature sprite placeholder
-      this.add.rectangle(width / 2, cardY + 56, 60, 60, 0x33aa55);
+      createBugContainer(this, width / 2, cardY + 60, creature.parts, 0.42);
 
       const stats = creature.getStats();
 
@@ -62,7 +66,7 @@ export default class CaptureScene extends Phaser.Scene {
 
       // Stats row
       this.add.text(width / 2, cardY + 120,
-        `HP ${creature.currentHP}/${stats.hp}   ATK ${stats.atk}   DEF ${stats.def}   SPD ${stats.spd}`,
+        `HP ${Math.max(0, creature.currentHP)}/${stats.hp}   ATK ${stats.atk}   DEF ${stats.def}   SPD ${stats.spd}`,
         { fontSize: '14px', color: '#cccccc', fontFamily: 'monospace' }
       ).setOrigin(0.5);
 

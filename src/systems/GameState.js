@@ -57,6 +57,7 @@ class GameState {
       archetype:  creature.archetype,
       ability:    creature.ability,
       special:    creature.special ?? null,
+      parts:      creature.parts ?? null,
       baseHp:     stats.hp,
       baseAtk:    stats.atk,
       baseDef:    stats.def,
@@ -80,6 +81,7 @@ class GameState {
       archetype:  creature.archetype,
       ability:    creature.ability,
       special:    creature.special ?? null,
+      parts:      creature.parts ?? null,
       baseHp:     stats.hp,
       baseAtk:    stats.atk,
       baseDef:    stats.def,
@@ -182,6 +184,7 @@ class GameState {
 
     const toCreature = e => new Creature({
       id: e.id, name: e.name, archetype: e.archetype, ability: e.ability,
+      parts: e.parts ?? null,
       baseHp: e.baseHp, baseAtk: e.baseAtk, baseDef: e.baseDef, baseSpd: e.baseSpd,
     }, 1);
 
@@ -196,6 +199,7 @@ class GameState {
       archetype:  offspring.archetype,
       ability:    offspring.ability,
       special:    offspring.special,
+      parts:      offspring.parts,
       baseHp:     offspringStats.hp,
       baseAtk:    offspringStats.atk,
       baseDef:    offspringStats.def,
@@ -234,6 +238,7 @@ class GameState {
 
     const toCreature = e => new Creature({
       id: e.id, name: e.name, archetype: e.archetype, ability: e.ability,
+      parts: e.parts ?? null,
       baseHp: e.baseHp, baseAtk: e.baseAtk, baseDef: e.baseDef, baseSpd: e.baseSpd,
     }, 1);
 
@@ -248,6 +253,7 @@ class GameState {
       archetype: offspring.archetype,
       ability:   offspring.ability,
       special:   offspring.special,
+      parts:     offspring.parts,
       baseHp:    offspringStats.hp,
       baseAtk:   offspringStats.atk,
       baseDef:   offspringStats.def,
@@ -307,17 +313,22 @@ class GameState {
             generation: 0,
           };
         }
-        // Backfill uid and special for entries from older saves
+        // Backfill uid, special and parts for entries from older saves
         if (!entry.uid) entry.uid = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
         if (!entry.special) entry.special = creatureData.find(cr => cr.id === entry.id)?.special ?? null;
+        if (!entry.parts) entry.parts = creatureData.find(cr => cr.id === entry.id)?.parts ?? null;
         return entry;
       }).filter(Boolean);
       this.hand               = (data.hand ?? []).map(entry => {
         if (!entry.uid) entry.uid = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
         if (!entry.special) entry.special = creatureData.find(cr => cr.id === entry.id)?.special ?? null;
+        if (!entry.parts) entry.parts = creatureData.find(cr => cr.id === entry.id)?.parts ?? null;
         return entry;
       });
-      this.selectedDeck       = data.selectedDeck       ?? [];
+      this.selectedDeck       = (data.selectedDeck ?? []).map(entry => {
+        if (!entry.parts) entry.parts = creatureData.find(cr => cr.id === entry.id)?.parts ?? null;
+        return entry;
+      });
       this.selectedItems      = data.selectedItems      ?? [];
       this.currentDeck        = data.currentDeck        ?? [];
       this.unlockedArchetypes = data.unlockedArchetypes ?? ['Flying'];

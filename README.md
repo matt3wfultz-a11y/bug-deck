@@ -1,0 +1,51 @@
+# Bug Collector Deckbuilder
+
+A beetle-themed roguelite deckbuilder with a monster-catching twist, built with [Phaser 3](https://phaser.io/).
+
+Build a deck of bugs, fight your way through escalating rounds, capture defeated enemies, and grow a permanent collection on your farm — then breed hybrids to push deeper on the next run.
+
+## How to play
+
+```sh
+python3 server.py 3456
+```
+
+Then open http://localhost:3456 in a browser. Phaser is vendored in `vendor/`, so no network access is needed.
+
+## Game loop
+
+1. **Build your deck** — pick up to 5 bugs from the three archetypes (or from your farm) and up to 3 items.
+2. **Battle map** — each round, choose a node: **Fight**, **Shop**, or **Breeding**.
+3. **Fight** — queued simultaneous combat. Each turn you spend stamina to queue actions (**ATK**, **DEF**, **SPECIAL** for 2, **ITEM**, **SWAP**), then hit **END** and both sides resolve slot by slot. Flying bugs get 4 stamina; Ground and Water get 3.
+4. **Capture** — after every victory you may catch one of the defeated enemies: add it to your **hand** (joins the current run) or send it to the **farm** (kept forever). Wins also pay out gold.
+5. **Push or leave** — enemies scale +20% per round. Leave safely to bank your surviving bugs, or keep fighting. Bugs that faint are gone for good.
+
+### Archetype triangle
+
+**Flying → Water → Ground → Flying** — advantage gives 1.5× damage on attacks and 2× on specials.
+
+### Farm & breeding
+
+Captured bugs live on your farm (max 20). Breed any two — on the farm between runs, or mid-run at a Breeding node for 50g — to consume the parents and produce a hybrid offspring with averaged stats, blended body parts, a generated name, and a mutated special. Generation bonuses make lineages stronger over time.
+
+### Shop
+
+Sell bugs from your farm or hand for gold, and buy permanent item unlocks that become selectable in the deck builder.
+
+## Project layout
+
+```
+index.html            entry point
+server.py             no-cache dev server
+vendor/phaser.min.js  vendored Phaser 3.60
+src/
+  main.js             Phaser config + boot
+  data/               creature, item, archetype definitions
+  entities/           Creature (stats, breeding, name generation)
+  systems/            GameState (save/load), BattleSystem, BattleQueue
+  scenes/             Menu, DeckBuilder, Map, Battle, Capture, Farm, Breeding, Shop
+  art/SvgParts.js     composites bug sprites from SVG part layers
+assets/               SVG bug parts (body/head/legs/wings variants)
+```
+
+Saves persist to `localStorage` under the key `bugDeck_save`.

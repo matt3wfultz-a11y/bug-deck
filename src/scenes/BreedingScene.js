@@ -1,14 +1,15 @@
 import GameState from '../systems/GameState.js';
+import { registerSvgTextures, createBugContainer } from '../art/SvgParts.js';
 
 // Card geometry (matches FarmScene)
 const CARD_W   = 176;
-const CARD_H   = 130;
+const CARD_H   = 170;
 const COLS     = 4;
 const GAP      = 8;
 const START_X  = 16;
 const START_Y  = 72;
 const COL_STEP = CARD_W + GAP;  // 184
-const ROW_STEP = CARD_H + GAP;  // 138
+const ROW_STEP = CARD_H + GAP;  // 178
 
 const ARCH_COLOR  = { Flying: '#ffdd44', Ground: '#cc9944', Water: '#66aaff' };
 const BREED_COST  = 50;
@@ -16,6 +17,10 @@ const BREED_COST  = 50;
 export default class BreedingScene extends Phaser.Scene {
   constructor() {
     super('BreedingScene');
+  }
+
+  preload() {
+    registerSvgTextures(this);
   }
 
   create() {
@@ -37,7 +42,7 @@ export default class BreedingScene extends Phaser.Scene {
     this._cards    = [];
 
     // ── Status / hint text ────────────────────────────────────────────────────
-    this._statusText = this.add.text(width / 2, height - 84, '', {
+    this._statusText = this.add.text(width / 2, height - 108, '', {
       fontSize: '14px', color: '#a8ff78', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
@@ -128,6 +133,10 @@ export default class BreedingScene extends Phaser.Scene {
       { fontSize: '8px', color: '#aa44aa', fontFamily: 'monospace' }
     ).setOrigin(0.5, 0);
     this._cards.push(spText);
+
+    // Bug portrait (shows this creature's part combination)
+    const bug = createBugContainer(this, cx + CARD_W / 2, cy + 125, creature.parts, 0.26);
+    this._cards.push(bug);
 
     // Generation badge
     const gen = creature.generation ?? 0;

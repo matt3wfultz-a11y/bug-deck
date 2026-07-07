@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<style>
+  body { background: #1a1a2e; color: #ccc; font-family: monospace; }
+  .grid { display: grid; grid-template-columns: repeat(4, 170px); gap: 6px; }
+  .cell { position: relative; width: 160px; height: 160px; background: #0d0d1a; }
+  .cell img { position: absolute; left: 0; top: 0; width: 160px; height: 160px; }
+  .cell span { position: absolute; left: 2px; top: 2px; font-size: 10px; color: #667; z-index: 10; }
+</style>
+</head>
+<body>
+<div class="grid" id="grid"></div>
+<script>
+  const grid = document.getElementById('grid');
+  for (let h = 1; h <= 4; h++) {
+    for (let b = 1; b <= 4; b++) {
+      const legs = b; // legs match body
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.innerHTML = `
+        <span>h${h} b${b} l${legs}</span>
+        <img src="Bug-parts-wings.svg">
+        <img src="Bug-parts-body-${b}.svg">
+        <img src="Bug-parts-legs-${legs}.svg">
+        <img src="Bug-parts-head-${h}.svg">`;
+      grid.appendChild(cell);
+    }
+  }
+</script>
+</body>
+</html>

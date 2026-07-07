@@ -67,8 +67,9 @@ export function destroyBugContainer(container) {
 
 /**
  * Returns random parts for a creature of the given archetype.
+ * Parts are interchangeable, so each slot rolls its variant independently.
  */
 export function randomParts(archetype) {
-  const v = Math.ceil(Math.random() * PART_COUNTS.body);
-  return { body: v, head: v, legs: v, wings: archetype === 'Flying' ? 1 : 0 };
+  const roll = key => Math.ceil(Math.random() * PART_COUNTS[key]);
+  return { body: roll('body'), head: roll('head'), legs: roll('legs'), wings: archetype === 'Flying' ? 1 : 0 };
 }

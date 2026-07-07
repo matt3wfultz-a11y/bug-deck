@@ -9,6 +9,7 @@ import CaptureScene      from './scenes/CaptureScene.js';
 import FarmScene         from './scenes/FarmScene.js';
 import BreedingScene     from './scenes/BreedingScene.js';
 import ShopScene         from './scenes/ShopScene.js';
+import WorkshopScene     from './scenes/WorkshopScene.js';
 import { creatures } from './data/creatures.js';
 import { fetchSvgData } from './art/SvgParts.js';
 
@@ -24,7 +25,7 @@ const config = {
   height:          600,
   backgroundColor: '#1a1a2e',
   parent:          document.body,
-  scene:           [MenuScene, DeckBuilderScene, MapScene, BattleScene, CaptureScene, FarmScene, BreedingScene, ShopScene],
+  scene:           [MenuScene, DeckBuilderScene, MapScene, BattleScene, CaptureScene, FarmScene, BreedingScene, ShopScene, WorkshopScene],
 };
 
 window.main = function () {

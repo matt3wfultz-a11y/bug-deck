@@ -248,7 +248,18 @@ export default class BattleScene extends Phaser.Scene {
     this._enemyQueue  = new BattleQueue(activeEnemy);
     this._resolving   = false;
 
-    this._phaseText.setText('> Queue your actions, then [ END ]');
+    let phaseMsg = '> Queue your actions, then [ END ]';
+    if (this._playerStunnedNext) {
+      this._playerQueue.currentStamina = Math.max(0, this._playerQueue.currentStamina - 1);
+      this._playerStunnedNext = false;
+      phaseMsg = '> STUNNED! -1 stamina this turn';
+    }
+    if (this._enemyStunnedNext) {
+      this._enemyQueue.currentStamina = Math.max(0, this._enemyQueue.currentStamina - 1);
+      this._enemyStunnedNext = false;
+    }
+
+    this._phaseText.setText(phaseMsg);
     this._queueText.setText('');
     this._refreshStaminaDots();
     this._refreshUI();
@@ -398,8 +409,10 @@ export default class BattleScene extends Phaser.Scene {
     const eIsSpecial = eAct?.type === 'SPECIAL'  && enemy?.isAlive()  && player?.isAlive();
     const eIsDef     = eAct?.type === 'DEFEND'  && enemy?.isAlive();
 
-    let playerDmg = 0; // damage dealt TO enemy
-    let enemyDmg  = 0; // damage dealt TO player
+    let playerDmg = 0;    // damage dealt TO enemy
+    let enemyDmg  = 0;    // damage dealt TO player
+    let pPlan     = null; // player's special plan (unique element mechanics)
+    let ePlan     = null; // enemy's special plan
 
     if (pIsAtk) {
       const aStats = player.getStats();
@@ -410,8 +423,9 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     if (pIsSpecial) {
-      playerDmg = sys._calcSpecialDmg(player, enemy);
-      if (eIsDef) playerDmg = Math.max(1, Math.ceil(playerDmg * DEFEND_RATIO));
+      pPlan = sys.specialPlan(player, enemy);
+      playerDmg = pPlan.dmg;
+      if (eIsDef && !pPlan.ignoresDefend) playerDmg = Math.max(1, Math.ceil(playerDmg * DEFEND_RATIO));
     }
 
     if (eIsAtk) {
@@ -423,13 +437,32 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     if (eIsSpecial) {
-      enemyDmg = sys._calcSpecialDmg(enemy, player);
-      if (pIsDef) enemyDmg = Math.max(1, Math.ceil(enemyDmg * DEFEND_RATIO));
+      ePlan = sys.specialPlan(enemy, player);
+      enemyDmg = ePlan.dmg;
+      if (pIsDef && !ePlan.ignoresDefend) enemyDmg = Math.max(1, Math.ceil(enemyDmg * DEFEND_RATIO));
     }
 
     // ── Apply damage simultaneously ───────────────────────────────────────────
     if (playerDmg > 0) enemy.takeDamage(playerDmg);
     if (enemyDmg  > 0) player.takeDamage(enemyDmg);
+
+    // ── Unique special side effects ───────────────────────────────────────────
+    let pDrained = 0;
+    let eDrained = 0;
+    if (pPlan) {
+      if (pPlan.stun) this._enemyStunnedNext = true;
+      if (pPlan.drains && player.isAlive()) {
+        pDrained = Math.ceil(playerDmg / 2);
+        player.currentHP = Math.min(player.getStats().hp, player.currentHP + pDrained);
+      }
+    }
+    if (ePlan) {
+      if (ePlan.stun) this._playerStunnedNext = true;
+      if (ePlan.drains && enemy.isAlive()) {
+        eDrained = Math.ceil(enemyDmg / 2);
+        enemy.currentHP = Math.min(enemy.getStats().hp, enemy.currentHP + eDrained);
+      }
+    }
 
     // ── Apply item ────────────────────────────────────────────────────────────
     if (pIsItem && sys.playerItems.length > 0) {
@@ -447,10 +480,13 @@ export default class BattleScene extends Phaser.Scene {
     const advTagE  = (eIsAtk    && ADVANTAGE[enemy.archetype]  === player.archetype) ? ' [ADV]'   : '';
     const superTagE = (eIsSpecial && ADVANTAGE[enemy.archetype]  === player.archetype) ? ' [SUPER]' : '';
 
-    if (pIsAtk)     sys._log(`${player.name} hits ${enemy.name} for ${playerDmg}${eIsDef ? ' [DEF]' : ''}${advTagP}.`);
-    if (pIsSpecial) sys._log(`${player.name} uses ${player.special?.name ?? 'Special'}! ${playerDmg} dmg${eIsDef ? ' [DEF]' : ''}${superTagP}.`);
-    if (eIsAtk)     sys._log(`${enemy.name} hits ${player.name} for ${enemyDmg}${pIsDef ? ' [DEF]' : ''}${advTagE}.`);
-    if (eIsSpecial) sys._log(`${enemy.name} uses ${enemy.special?.name ?? 'Special'}! ${enemyDmg} dmg${pIsDef ? ' [DEF]' : ''}${superTagE}.`);
+    const pNote = pPlan?.note ? ` (${pPlan.note}${pPlan.drains ? ` +${pDrained} HP` : ''})` : '';
+    const eNote = ePlan?.note ? ` (${ePlan.note}${ePlan.drains ? ` +${eDrained} HP` : ''})` : '';
+
+    if (pIsAtk)     sys._log(`${player.name}'s ${player.attack?.name ?? 'attack'} hits ${enemy.name} for ${playerDmg}${eIsDef ? ' [DEF]' : ''}${advTagP}.`);
+    if (pIsSpecial) sys._log(`${player.name} uses ${player.special?.name ?? 'Special'}! ${playerDmg} dmg${eIsDef && !pPlan?.ignoresDefend ? ' [DEF]' : ''}${superTagP}${pNote}.`);
+    if (eIsAtk)     sys._log(`${enemy.name}'s ${enemy.attack?.name ?? 'attack'} hits ${player.name} for ${enemyDmg}${pIsDef ? ' [DEF]' : ''}${advTagE}.`);
+    if (eIsSpecial) sys._log(`${enemy.name} uses ${enemy.special?.name ?? 'Special'}! ${enemyDmg} dmg${pIsDef && !ePlan?.ignoresDefend ? ' [DEF]' : ''}${superTagE}${eNote}.`);
     if (pIsDef && !eIsAtk && !eIsSpecial) sys._log(`${player.name} defends.`);
     if (eIsDef && !pIsAtk && !pIsSpecial) sys._log(`${enemy.name} defends.`);
 
@@ -975,7 +1011,10 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     if (this.battleSystem.playerWon()) {
-      this._statusText.setText('Victory!').setColor('#a8ff78');
+      const goldReward = 15 + (this._currentRound - 1) * 10;
+      GameState.currency += goldReward;
+      GameState.saveGame();
+      this._statusText.setText(`Victory!  +${goldReward}g`).setColor('#a8ff78');
       this.time.delayedCall(1400, () => {
         const capturable = this.battleSystem.getCapturableCreature();
         this.scene.start('CaptureScene', { capturable, returnToMap: true });

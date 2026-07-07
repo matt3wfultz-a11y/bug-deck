@@ -36,6 +36,43 @@ export default class BattleSystem {
     return Math.max(1, Math.ceil((aStats.atk - dStats.def) * 2 * adv));
   }
 
+  /**
+   * Compute a special attack's damage plan. Each element has a unique mechanic:
+   *   Wind      — strikes twice: two hits, each min 1 (great vs high DEF)
+   *   Lightning — stuns: target loses 1 stamina next turn
+   *   Earth     — unblockable: DEF stance does not reduce it
+   *   Tide      — drains: attacker heals half the final damage dealt
+   * All elements keep the 2× advantage multiplier vs the countered archetype.
+   *
+   * @returns {{ dmg: number, stun: boolean, drains: boolean, ignoresDefend: boolean, note: string }}
+   */
+  specialPlan(attacker, defender) {
+    const aStats = attacker.getStats();
+    const dStats = defender.getStats();
+    const adv    = ADVANTAGE[attacker.archetype] === defender.archetype ? SPECIAL_ADV : 1;
+    const base   = Math.max(0, aStats.atk - dStats.def);
+    const el     = attacker.special?.element ?? null;
+
+    if (el === 'Wind') {
+      const hit = Math.max(1, Math.ceil(base * adv));
+      return { dmg: hit * 2, stun: false, drains: false, ignoresDefend: false, note: '2 hits' };
+    }
+    if (el === 'Lightning') {
+      const dmg = Math.max(1, Math.ceil(base * 1.5 * adv));
+      return { dmg, stun: true, drains: false, ignoresDefend: false, note: 'stunned!' };
+    }
+    if (el === 'Earth') {
+      const dmg = Math.max(1, Math.ceil(base * 2 * adv));
+      return { dmg, stun: false, drains: false, ignoresDefend: true, note: 'unblockable' };
+    }
+    if (el === 'Tide') {
+      const dmg = Math.max(1, Math.ceil(base * 1.5 * adv));
+      return { dmg, stun: false, drains: true, ignoresDefend: false, note: 'drains' };
+    }
+    // No element — plain 2× special
+    return { dmg: this._calcSpecialDmg(attacker, defender), stun: false, drains: false, ignoresDefend: false, note: '' };
+  }
+
   playerAction(action, targetIdx = 0) {
     if (this.turn !== 'player') return;
     if (this.isOver()) return;

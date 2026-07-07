@@ -20,6 +20,7 @@ class GameState {
     this.unlockedArchetypes  = ['Flying'];
     this.currency            = 0;
     this.itemInventory       = [];        // items purchased from shop (permanent unlocks)
+    this.partInventory       = {};        // spare bug parts, e.g. { 'head-3': 2 } (salvaged from sold/fallen bugs)
     this.completedRuns       = 0;
     this.runFightWins        = 0;         // fight wins in current run (0-3)
     this.lootTaken           = false;     // true once loot taken this round
@@ -57,6 +58,7 @@ class GameState {
       archetype:  creature.archetype,
       ability:    creature.ability,
       special:    creature.special ?? null,
+      parts:      creature.parts ?? null,
       baseHp:     stats.hp,
       baseAtk:    stats.atk,
       baseDef:    stats.def,
@@ -80,6 +82,7 @@ class GameState {
       archetype:  creature.archetype,
       ability:    creature.ability,
       special:    creature.special ?? null,
+      parts:      creature.parts ?? null,
       baseHp:     stats.hp,
       baseAtk:    stats.atk,
       baseDef:    stats.def,
@@ -114,9 +117,9 @@ class GameState {
   removeDeadRunCreatures(uids) {
     for (const uid of uids) {
       const fi = this.farm.findIndex(e => e.uid === uid);
-      if (fi !== -1) this.farm.splice(fi, 1);
+      if (fi !== -1) this.harvestParts(this.farm.splice(fi, 1)[0]);
       const hi = this.hand.findIndex(e => e.uid === uid);
-      if (hi !== -1) this.hand.splice(hi, 1);
+      if (hi !== -1) this.harvestParts(this.hand.splice(hi, 1)[0]);
     }
     this.saveGame();
   }
@@ -126,10 +129,58 @@ class GameState {
     return this.farm;
   }
 
+  /**
+   * Salvage a creature entry's body/head/legs into the spare part inventory.
+   * Wings are skipped (they are tied to archetype, not swappable).
+   * @returns {string[]} The harvested part keys, e.g. ['body-2', 'head-2', 'legs-2'].
+   */
+  harvestParts(entry) {
+    const parts = { body: 1, head: 1, legs: 1, ...(entry.parts ?? {}) };
+    const keys  = ['body', 'head', 'legs'].map(slot => `${slot}-${parts[slot]}`);
+    for (const key of keys) {
+      this.partInventory[key] = (this.partInventory[key] ?? 0) + 1;
+    }
+    return keys;
+  }
+
+  /** Count of a spare part in inventory, e.g. partCount('head', 3). */
+  partCount(slot, variant) {
+    return this.partInventory[`${slot}-${variant}`] ?? 0;
+  }
+
   /** Compute sell price for a farm creature entry. */
   sellPrice(entry) {
     const base = entry.baseHp + entry.baseAtk * 3 + entry.baseDef * 2 + entry.baseSpd * 2;
     return Math.floor(base * (1 + (entry.generation ?? 0) * 0.5));
+  }
+
+  /**
+   * Rebuild a farm creature with new parts, charging the given gold cost.
+   * Installed parts are consumed from partInventory; replaced parts return
+   * to it. Returns false if unaffordable, parts not owned, or not found.
+   */
+  setFarmParts(uid, parts, cost) {
+    const entry = this.farm.find(e => e.uid === uid);
+    if (!entry || this.currency < cost) return false;
+
+    const old     = { body: 1, head: 1, legs: 1, wings: 0, ...(entry.parts ?? {}) };
+    const changed = ['body', 'head', 'legs'].filter(slot => parts[slot] !== old[slot]);
+
+    // Every installed part must be in stock
+    for (const slot of changed) {
+      if (this.partCount(slot, parts[slot]) < 1) return false;
+    }
+
+    for (const slot of changed) {
+      this.partInventory[`${slot}-${parts[slot]}`] -= 1;
+      const oldKey = `${slot}-${old[slot]}`;
+      this.partInventory[oldKey] = (this.partInventory[oldKey] ?? 0) + 1;
+    }
+
+    this.currency -= cost;
+    entry.parts = { ...parts };
+    this.saveGame();
+    return true;
   }
 
   /** Remove a farm creature by uid and credit the player. Returns gold earned (0 if not found). */
@@ -137,6 +188,7 @@ class GameState {
     const idx = this.farm.findIndex(e => e.uid === uid);
     if (idx === -1) return 0;
     const price = this.sellPrice(this.farm[idx]);
+    this.harvestParts(this.farm[idx]);
     this.farm.splice(idx, 1);
     this.currency += price;
     this.saveGame();
@@ -162,6 +214,7 @@ class GameState {
     const hi = this.hand.findIndex(e => e.uid === uid);
     if (hi === -1) return 0;
     const price = this.sellPrice(this.hand[hi]);
+    this.harvestParts(this.hand[hi]);
     this.hand.splice(hi, 1);
     const di = this.selectedDeck.findIndex(e => e.uid === uid);
     if (di !== -1) this.selectedDeck.splice(di, 1);
@@ -182,6 +235,7 @@ class GameState {
 
     const toCreature = e => new Creature({
       id: e.id, name: e.name, archetype: e.archetype, ability: e.ability,
+      parts: e.parts ?? null,
       baseHp: e.baseHp, baseAtk: e.baseAtk, baseDef: e.baseDef, baseSpd: e.baseSpd,
     }, 1);
 
@@ -196,6 +250,7 @@ class GameState {
       archetype:  offspring.archetype,
       ability:    offspring.ability,
       special:    offspring.special,
+      parts:      offspring.parts,
       baseHp:     offspringStats.hp,
       baseAtk:    offspringStats.atk,
       baseDef:    offspringStats.def,
@@ -234,6 +289,7 @@ class GameState {
 
     const toCreature = e => new Creature({
       id: e.id, name: e.name, archetype: e.archetype, ability: e.ability,
+      parts: e.parts ?? null,
       baseHp: e.baseHp, baseAtk: e.baseAtk, baseDef: e.baseDef, baseSpd: e.baseSpd,
     }, 1);
 
@@ -248,6 +304,7 @@ class GameState {
       archetype: offspring.archetype,
       ability:   offspring.ability,
       special:   offspring.special,
+      parts:     offspring.parts,
       baseHp:    offspringStats.hp,
       baseAtk:   offspringStats.atk,
       baseDef:   offspringStats.def,
@@ -278,6 +335,7 @@ class GameState {
       unlockedArchetypes: this.unlockedArchetypes,
       currency:           this.currency,
       itemInventory:      this.itemInventory,
+      partInventory:      this.partInventory,
       completedRuns:      this.completedRuns,
       runFightWins:       this.runFightWins,
       lootTaken:          this.lootTaken,
@@ -307,22 +365,28 @@ class GameState {
             generation: 0,
           };
         }
-        // Backfill uid and special for entries from older saves
+        // Backfill uid, special and parts for entries from older saves
         if (!entry.uid) entry.uid = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
         if (!entry.special) entry.special = creatureData.find(cr => cr.id === entry.id)?.special ?? null;
+        if (!entry.parts) entry.parts = creatureData.find(cr => cr.id === entry.id)?.parts ?? null;
         return entry;
       }).filter(Boolean);
       this.hand               = (data.hand ?? []).map(entry => {
         if (!entry.uid) entry.uid = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
         if (!entry.special) entry.special = creatureData.find(cr => cr.id === entry.id)?.special ?? null;
+        if (!entry.parts) entry.parts = creatureData.find(cr => cr.id === entry.id)?.parts ?? null;
         return entry;
       });
-      this.selectedDeck       = data.selectedDeck       ?? [];
+      this.selectedDeck       = (data.selectedDeck ?? []).map(entry => {
+        if (!entry.parts) entry.parts = creatureData.find(cr => cr.id === entry.id)?.parts ?? null;
+        return entry;
+      });
       this.selectedItems      = data.selectedItems      ?? [];
       this.currentDeck        = data.currentDeck        ?? [];
       this.unlockedArchetypes = data.unlockedArchetypes ?? ['Flying'];
       this.currency           = data.currency           ?? 0;
       this.itemInventory      = data.itemInventory      ?? [];
+      this.partInventory      = data.partInventory      ?? {};
       this.completedRuns      = data.completedRuns      ?? 0;
       this.runFightWins       = data.runFightWins       ?? 0;
       this.lootTaken          = data.lootTaken          ?? false;

@@ -27,6 +27,8 @@ const DOT_SIZE = 9;
 const DOT_GAP  = 4;
 const DOT_Y    = 152;
 
+const SPRITE_SCALE = 0.7; // battle sprite size
+
 export default class BattleScene extends Phaser.Scene {
   constructor() {
     super('BattleScene');
@@ -58,8 +60,11 @@ export default class BattleScene extends Phaser.Scene {
       : buildFallback(archetype);
 
     const enemyPool    = creatureData.filter(c => c.archetype === enemyArch);
-    const scaleFactor  = 1 + (currentRound - 1) * 0.20; // +20% per round
-    const enemyDeck = Array.from({ length: 5 }, () => {
+    // Difficulty ramps through the run: bigger enemy crews and stronger stats
+    const enemyCount   = Math.min(5, 2 + currentRound);        // 3 at round 1, 5 by round 3
+    const scaleFactor  = 1 + (currentRound - 1) * 0.15;        // +15% stats per round
+    this._enemyTotal   = enemyCount;
+    const enemyDeck = Array.from({ length: enemyCount }, () => {
       const tmpl = enemyPool[Math.floor(Math.random() * enemyPool.length)];
       const scaled = {
         ...tmpl,
@@ -110,7 +115,7 @@ export default class BattleScene extends Phaser.Scene {
     this._spriteY     = 155;
 
     // ── Player panel ──────────────────────────────────────────────────────────
-    this._playerSprite = createBugContainer(this, this._playerHomeX, this._spriteY, playerDeck[0]?.parts, 1.0);
+    this._playerSprite = createBugContainer(this, this._playerHomeX, this._spriteY, playerDeck[0]?.parts, SPRITE_SCALE);
     this._playerName   = this.add.text(16, 68, '', {
       fontSize: '17px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
     });
@@ -141,8 +146,8 @@ export default class BattleScene extends Phaser.Scene {
     }
 
     // ── Enemy panel ───────────────────────────────────────────────────────────
-    this._enemySprite = createBugContainer(this, this._enemyHomeX, this._spriteY, this.battleSystem.enemyHand[0]?.parts, 1.0);
-    this._enemySprite.setScale(-1.0, 1.0); // flip horizontally
+    this._enemySprite = createBugContainer(this, this._enemyHomeX, this._spriteY, this.battleSystem.enemyHand[0]?.parts, SPRITE_SCALE);
+    this._enemySprite.setScale(-1, 1); // flip horizontally (children already carry SPRITE_SCALE)
     this._enemyName   = this.add.text(width - 16, 68, '', {
       fontSize: '17px', color: '#ff8888', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(1, 0);
@@ -338,7 +343,7 @@ export default class BattleScene extends Phaser.Scene {
     const round         = this._currentRound ?? 1;
     // Enemies defend less and use Specials more as rounds increase
     const defendThresh  = Math.max(0.15, 0.4 - round * 0.025);
-    const specialChance = Math.min(0.85, 0.35 + round * 0.05);
+    const specialChance = Math.min(0.7, 0.15 + round * 0.05);
 
     for (let i = 0; i < max; i++) {
       if (!this._enemyQueue.canAfford()) break;
@@ -911,7 +916,7 @@ export default class BattleScene extends Phaser.Scene {
     const enemy  = sys.enemyHand.find(c => c.isAlive());
 
     this._playerDeckText.setText(`You: ${sys.playerHand.filter(c => c.isAlive()).length}/${this._deckRoster.length}`);
-    this._enemyDeckText.setText(`Enemy: ${sys.enemyHand.filter(c => c.isAlive()).length}/5`);
+    this._enemyDeckText.setText(`Enemy: ${sys.enemyHand.filter(c => c.isAlive()).length}/${this._enemyTotal}`);
 
     if (player) {
       const ps = player.getStats();
@@ -920,7 +925,7 @@ export default class BattleScene extends Phaser.Scene {
       this._setHpBar(this._playerHpFill, this._playerHpText, player.currentHP, ps.hp);
       if (this._lastPlayerParts !== player.parts) {
         destroyBugContainer(this._playerSprite);
-        this._playerSprite = createBugContainer(this, this._playerHomeX, this._spriteY, player.parts, 1.0);
+        this._playerSprite = createBugContainer(this, this._playerHomeX, this._spriteY, player.parts, SPRITE_SCALE);
         this._lastPlayerParts = player.parts;
       }
       this._playerSprite.setVisible(true);
@@ -939,8 +944,8 @@ export default class BattleScene extends Phaser.Scene {
       this._setHpBar(this._enemyHpFill, this._enemyHpText, enemy.currentHP, es.hp);
       if (this._lastEnemyParts !== enemy.parts) {
         destroyBugContainer(this._enemySprite);
-        this._enemySprite = createBugContainer(this, this._enemyHomeX, this._spriteY, enemy.parts, 1.0);
-        this._enemySprite.setScale(-1.0, 1.0);
+        this._enemySprite = createBugContainer(this, this._enemyHomeX, this._spriteY, enemy.parts, SPRITE_SCALE);
+        this._enemySprite.setScale(-1, 1);
         this._lastEnemyParts = enemy.parts;
       }
       this._enemySprite.setVisible(true);

@@ -26,7 +26,9 @@ Then open http://localhost:3456 in a browser. Phaser is vendored in `vendor/`, s
 
 ### Farm & breeding
 
-Captured bugs live on your farm (max 20). Breed any two — on the farm between runs, or mid-run at a Breeding node for 50g — to consume the parents and produce a hybrid offspring with averaged stats, blended body parts, a generated name, and a mutated special. Generation bonuses make lineages stronger over time.
+Captured bugs live on your farm (max 20). Breed any two — on the farm between runs, or mid-run at a Breeding node for 50g — to consume the parents and produce a hybrid offspring with averaged stats, a generated name, and a mutated special. Generation bonuses make lineages stronger over time.
+
+Bug parts are fully interchangeable: every bug is composited from body, head, legs, and wings layers, and offspring inherit each part independently from a random parent (with a 12% mutation chance per part to roll a brand-new variant). Farm and breeding cards show each bug's portrait, so you can see exactly which parts your hybrids carry. `assets/mix-test.html` renders every head×body combination for eyeballing the part art.
 
 ### Shop
 

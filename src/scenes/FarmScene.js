@@ -1,20 +1,25 @@
 import GameState from '../systems/GameState.js';
+import { registerSvgTextures, createBugContainer } from '../art/SvgParts.js';
 
 const CARD_W   = 176;
-const CARD_H   = 110;
+const CARD_H   = 150;
 const COLS     = 4;
-const PER_PAGE = 12;           // COLS × 3 rows
+const PER_PAGE = 8;            // COLS × 2 rows
 const GAP      = 8;
 const START_X  = 16;
 const START_Y  = 68;
 const COL_STEP = CARD_W + GAP; // 184
-const ROW_STEP = CARD_H + GAP; // 118
+const ROW_STEP = CARD_H + GAP; // 158
 
 const ARCH_COLOR = { Flying: '#ffdd44', Ground: '#cc9944', Water: '#66aaff' };
 
 export default class FarmScene extends Phaser.Scene {
   constructor() {
     super('FarmScene');
+  }
+
+  preload() {
+    registerSvgTextures(this);
   }
 
   create() {
@@ -140,6 +145,10 @@ export default class FarmScene extends Phaser.Scene {
       `\u2726 ${creature.ability.name}`,
       { fontSize: '10px', color: '#665577', fontFamily: 'monospace' }
     ).setOrigin(0.5, 0);
+
+    // Bug portrait (shows this creature's part combination)
+    const bug = createBugContainer(this, cx + CARD_W / 2, cy + 108, creature.parts, 0.26);
+    this._cardObjects.push(bug);
 
     // Generation badge (only for bred creatures)
     const gen = creature.generation ?? 0;

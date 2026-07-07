@@ -107,14 +107,23 @@ export default class Creature {
     // Pick archetype from one parent at random
     let archetype = Math.random() < 0.5 ? p1.archetype : p2.archetype;
 
-    // Average parts numerically, clamped to valid ranges
+    // Parts are interchangeable: each part is inherited independently from a
+    // random parent, with a small chance to mutate into any variant.
     const p1Parts = p1.parts ?? { body: 1, head: 1, legs: 1, wings: 0 };
     const p2Parts = p2.parts ?? { body: 1, head: 1, legs: 1, wings: 0 };
 
-    // Average the variant number (body=head=legs must stay in sync)
-    const v = Math.max(1, Math.min(PART_COUNTS.body, Math.round((p1Parts.body + p2Parts.body) / 2)));
-    const wingsVal = Math.max(0, Math.min(PART_COUNTS.wings, Math.round((p1Parts.wings + p2Parts.wings) / 2)));
-    const offspringParts = { body: v, head: v, legs: v, wings: wingsVal };
+    const MUTATION_CHANCE = 0.12;
+    const inherit = key => {
+      const fromParent = Math.random() < 0.5 ? p1Parts[key] : p2Parts[key];
+      if (Math.random() < MUTATION_CHANCE) return Math.ceil(Math.random() * PART_COUNTS[key]);
+      return Math.max(1, Math.min(PART_COUNTS[key], fromParent));
+    };
+    const offspringParts = {
+      body:  inherit('body'),
+      head:  inherit('head'),
+      legs:  inherit('legs'),
+      wings: Math.random() < 0.5 ? p1Parts.wings : p2Parts.wings,
+    };
 
     // If offspring has wings and archetype is not already Flying, override to Flying
     if (offspringParts.wings > 0 && archetype !== 'Flying') {

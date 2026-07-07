@@ -68,8 +68,9 @@ export default class FarmScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // ── Buttons ───────────────────────────────────────────────────────────────
-    this._breedBtn = this._makeButton(width / 2 - 110, 482, 'BREED', '#a8ff78', () => this._doBreed());
-    this._makeButton(width / 2 + 110, 482, 'BACK', '#88bbff', () => this.scene.start('MenuScene'));
+    this._breedBtn = this._makeButton(width / 2 - 190, 482, 'BREED', '#a8ff78', () => this._doBreed());
+    this._makeButton(width / 2, 482, 'WORKSHOP', '#ff9966', () => this.scene.start('WorkshopScene'));
+    this._makeButton(width / 2 + 190, 482, 'BACK', '#88bbff', () => this.scene.start('MenuScene'));
 
     this._buildGrid();
     this._updateBreedBtn();

@@ -134,6 +134,16 @@ class GameState {
     return Math.floor(base * (1 + (entry.generation ?? 0) * 0.5));
   }
 
+  /** Overwrite a farm creature's parts, charging the given gold cost. Returns false if unaffordable/not found. */
+  setFarmParts(uid, parts, cost) {
+    const entry = this.farm.find(e => e.uid === uid);
+    if (!entry || this.currency < cost) return false;
+    this.currency -= cost;
+    entry.parts = { ...parts };
+    this.saveGame();
+    return true;
+  }
+
   /** Remove a farm creature by uid and credit the player. Returns gold earned (0 if not found). */
   sellCreature(uid) {
     const idx = this.farm.findIndex(e => e.uid === uid);

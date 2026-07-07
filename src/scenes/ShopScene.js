@@ -51,6 +51,11 @@ export default class ShopScene extends Phaser.Scene {
     this._contentObjs = [];
     this._buildContent();
 
+    // ── Sell feedback ─────────────────────────────────────────────────────────
+    this._statusText = this.add.text(width / 2, height - 24, '', {
+      fontSize: '12px', color: '#a8ff78', fontFamily: 'monospace',
+    }).setOrigin(0.5);
+
     // ── Back button ───────────────────────────────────────────────────────────
     const backTarget = GameState.selectedArchetype ? 'MapScene' : 'MenuScene';
     this.add.text(56, height - 24, '[ BACK ]', {
@@ -148,9 +153,14 @@ export default class ShopScene extends Phaser.Scene {
     btn.on('pointerover', () => btn.setColor('#ffffff'));
     btn.on('pointerout',  () => btn.setColor('#ff9944'));
     btn.on('pointerdown', () => {
-      if (fromHand) GameState.sellFromHand(entry.uid);
-      else          GameState.sellCreature(entry.uid);
+      const parts = { body: 1, head: 1, legs: 1, ...(entry.parts ?? {}) };
+      const earned = fromHand
+        ? GameState.sellFromHand(entry.uid)
+        : GameState.sellCreature(entry.uid);
       this._goldText.setText(`Gold: ${GameState.currency}`);
+      this._statusText.setText(
+        `Sold ${entry.name} for ${earned}g — salvaged body-${parts.body}, head-${parts.head}, legs-${parts.legs} for the Workshop`
+      );
       this._rebuildContent();
     });
     objs.push(btn);

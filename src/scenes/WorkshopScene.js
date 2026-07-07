@@ -169,8 +169,19 @@ export default class WorkshopScene extends Phaser.Scene {
     this._preview = createBugContainer(this, width / 2, 218, this._parts, 0.85);
     this._editObjs.push(this._preview);
 
+    // Spare parts panel (what you've salvaged from sold/fallen bugs)
+    this._editObjs.push(this.add.text(24, 140, 'SPARE PARTS', {
+      fontSize: '11px', color: '#556688', fontFamily: 'monospace', fontStyle: 'bold',
+    }));
+    this._sparesText = this.add.text(24, 160, '', {
+      fontSize: '11px', color: '#7788aa', fontFamily: 'monospace', lineSpacing: 6,
+    });
+    this._editObjs.push(this._sparesText);
+
     // Part selector rows
-    this._slotTexts = {};
+    this._slotTexts  = {};
+    this._slotInfo   = {};
+    this._slotArrows = {};
     SLOTS.forEach((slot, i) => {
       const ry = 352 + i * 40;
 
@@ -178,14 +189,22 @@ export default class WorkshopScene extends Phaser.Scene {
         fontSize: '15px', color: '#8899aa', fontFamily: 'monospace', fontStyle: 'bold',
       }).setOrigin(0, 0.5));
 
-      this._editObjs.push(this._makeArrow(width / 2 + 10, ry, '◀', () => this._cycle(slot, -1)));
+      const left = this._makeArrow(width / 2 + 10, ry, '◀', () => this._cycle(slot, -1));
+      this._editObjs.push(left);
 
       this._slotTexts[slot] = this.add.text(width / 2 + 70, ry, '', {
         fontSize: '15px', color: '#ffffff', fontFamily: 'monospace',
       }).setOrigin(0.5);
       this._editObjs.push(this._slotTexts[slot]);
 
-      this._editObjs.push(this._makeArrow(width / 2 + 130, ry, '▶', () => this._cycle(slot, +1)));
+      const right = this._makeArrow(width / 2 + 130, ry, '▶', () => this._cycle(slot, +1));
+      this._editObjs.push(right);
+      this._slotArrows[slot] = [left, right];
+
+      this._slotInfo[slot] = this.add.text(width / 2 + 168, ry, '', {
+        fontSize: '11px', color: '#556677', fontFamily: 'monospace',
+      }).setOrigin(0, 0.5);
+      this._editObjs.push(this._slotInfo[slot]);
     });
 
     this._editObjs.push(this.add.text(width / 2, 352 + SLOTS.length * 40,
@@ -209,11 +228,24 @@ export default class WorkshopScene extends Phaser.Scene {
     this._refreshEdit();
   }
 
+  /** Variants selectable for a slot: the part already on the bug, plus any spares in stock. */
+  _selectable(slot) {
+    const out = [];
+    for (let v = 1; v <= PART_COUNTS[slot]; v++) {
+      if (v === this._original[slot] || GameState.partCount(slot, v) > 0) out.push(v);
+    }
+    return out;
+  }
+
   _cycle(slot, dir) {
     const max = PART_COUNTS[slot];
-    let v = this._parts[slot] + dir;
-    if (v < 1)   v = max;
-    if (v > max) v = 1;
+    let v = this._parts[slot];
+    for (let i = 0; i < max; i++) {
+      v += dir;
+      if (v < 1)   v = max;
+      if (v > max) v = 1;
+      if (v === this._original[slot] || GameState.partCount(slot, v) > 0) break;
+    }
     this._parts[slot] = v;
     this._refreshEdit();
   }
@@ -229,17 +261,41 @@ export default class WorkshopScene extends Phaser.Scene {
     this._preview = createBugContainer(this, this.scale.width / 2, 218, this._parts, 0.85);
     if (idx !== -1) this._editObjs[idx] = this._preview;
 
+    // Spare parts panel
+    let totalSpares = 0;
+    const lines = SLOTS.map(slot => {
+      const owned = [];
+      for (let v = 1; v <= PART_COUNTS[slot]; v++) {
+        const n = GameState.partCount(slot, v);
+        if (n > 0) { owned.push(`v${v}×${n}`); totalSpares += n; }
+      }
+      return `${slot.toUpperCase().padEnd(5)} ${owned.length ? owned.join('  ') : '—'}`;
+    });
+    this._sparesText.setText(lines.join('\n'));
+
     SLOTS.forEach(slot => {
-      const changed = this._parts[slot] !== this._original[slot];
+      const v       = this._parts[slot];
+      const changed = v !== this._original[slot];
       this._slotTexts[slot]
-        .setText(`${this._parts[slot]} / ${PART_COUNTS[slot]}${changed ? ' *' : ''}`)
+        .setText(`${v} / ${PART_COUNTS[slot]}${changed ? ' *' : ''}`)
         .setColor(changed ? '#ffdd44' : '#ffffff');
+
+      this._slotInfo[slot]
+        .setText(v === this._original[slot] ? '(on bug)' : `spare ×${GameState.partCount(slot, v)}`)
+        .setColor(v === this._original[slot] ? '#556677' : '#88ff88');
+
+      const canCycle = this._selectable(slot).length > 1;
+      this._slotArrows[slot].forEach(a => a.setAlpha(canCycle ? 1 : 0.25));
     });
 
     const cost      = this._changedCount() * PART_COST;
     const canAfford = GameState.currency >= cost;
     if (cost === 0) {
-      this._costText.setText('Cycle parts with the arrows — * marks changes').setColor('#555577');
+      this._costText
+        .setText(totalSpares > 0
+          ? 'Cycle parts with the arrows — * marks changes'
+          : 'No spare parts — sell bugs (or lose them in battle) to salvage parts')
+        .setColor('#555577');
     } else {
       this._costText
         .setText(`Cost: ${cost}g   (you have ${GameState.currency}g)`)

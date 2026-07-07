@@ -30,9 +30,9 @@ Captured bugs live on your farm (max 20). Breed any two — on the farm between 
 
 Bug parts are fully interchangeable: every bug is composited from body, head, legs, and wings layers, and offspring inherit each part independently from a random parent (with a 12% mutation chance per part to roll a brand-new variant). Farm and breeding cards show each bug's portrait, so you can see exactly which parts your hybrids carry. `assets/mix-test.html` renders every head×body combination for eyeballing the part art.
 
-### Workshop
+### Workshop & spare parts
 
-From the farm, open the **Workshop** to rebuild any bug by hand: pick a creature, cycle its body, head, and legs variants with a live preview, and pay 25g per changed part to apply. Wings stay tied to archetype.
+Selling a bug — or losing one in battle — salvages its body, head, and legs into your **spare parts inventory**. From the farm, open the **Workshop** to rebuild any bug by hand: pick a creature, cycle its body, head, and legs through the parts you've banked (a live preview re-composites on every change), and pay 25g per changed part to apply. Installed parts are consumed from your stock and the replaced parts go back into it, so every swap is a true exchange. Wings stay tied to archetype.
 
 ### Shop
 

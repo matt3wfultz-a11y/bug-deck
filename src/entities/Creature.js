@@ -23,6 +23,9 @@ export default class Creature {
     this.archetype = data.archetype;
     this.ability   = data.ability;
     this.special   = data.special ?? null;
+    this.attack    = data.attack
+      ?? creatureData.find(c => c.id === data.id)?.attack
+      ?? { name: 'Strike' };
     this.level     = level;
     this.parentIds = parentIds;
     this.parts     = data.parts ?? { body: 1, head: 1, legs: 1, wings: 0 };

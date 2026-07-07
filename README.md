@@ -24,6 +24,17 @@ Then open http://localhost:3456 in a browser. Phaser is vendored in `vendor/`, s
 
 **Flying → Water → Ground → Flying** — advantage gives 1.5× damage on attacks and 2× on specials.
 
+### Cards & special attacks
+
+The deck builder shows each bug as a full card (frame art from `assets/card-frame.svg`): composited portrait, stats, its named basic attack, ability, and special attack. Every special element has a unique damage mechanic on top of the 2× advantage bonus:
+
+| Element | Mechanic |
+|---|---|
+| **Wind** | Strikes twice — two hits, each min 1 damage (great vs high DEF) |
+| **Lightning** | Stuns — target loses 1 stamina next turn |
+| **Earth** | Unblockable — DEF stance doesn't reduce it |
+| **Tide** | Drains — attacker heals half the damage dealt |
+
 ### Farm & breeding
 
 Captured bugs live on your farm (max 20). Breed any two — on the farm between runs, or mid-run at a Breeding node for 50g — to consume the parents and produce a hybrid offspring with averaged stats, a generated name, and a mutated special. Generation bonuses make lineages stronger over time.

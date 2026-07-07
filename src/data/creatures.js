@@ -1,21 +1,28 @@
+// Special attack elements each have a UNIQUE damage mechanic (see BattleSystem.specialPlan):
+//   Wind      — strikes twice (two separate hits, each min 1 damage)
+//   Lightning — stuns: target loses 1 stamina next turn
+//   Earth     — unblockable: cannot be reduced by DEF stance
+//   Tide      — drains: attacker heals half the damage dealt
+// All specials still deal 2× damage to the archetype they counter.
+
 export const SPECIAL_POOLS = {
   Flying: [
-    { name: 'Gale Slash',    element: 'Wind',      desc: '2× damage. Wind tears through Water types (2× ADV).' },
-    { name: 'Cyclone Dust',  element: 'Wind',      desc: '2× damage. Vortex of scales devastates Water types (2× ADV).' },
-    { name: 'Thunder Sting', element: 'Lightning', desc: '2× damage. Electric charge surges through Water types (2× ADV).' },
-    { name: 'Storm Jab',     element: 'Lightning', desc: '2× damage. High-voltage strike electrifies Water types (2× ADV).' },
+    { name: 'Gale Slash',    element: 'Wind',      desc: 'Strikes twice. Wind tears through Water types (2× ADV).' },
+    { name: 'Cyclone Dust',  element: 'Wind',      desc: 'Strikes twice. A vortex of scales devastates Water types (2× ADV).' },
+    { name: 'Thunder Sting', element: 'Lightning', desc: 'Stuns: -1 stamina next turn. Shocks Water types (2× ADV).' },
+    { name: 'Storm Jab',     element: 'Lightning', desc: 'Stuns: -1 stamina next turn. Electrifies Water types (2× ADV).' },
   ],
   Ground: [
-    { name: 'Tremor Slam',  element: 'Earth', desc: '2× damage. Earthshaking crash grounds Flying types (2× ADV).' },
-    { name: 'Quake March',  element: 'Earth', desc: '2× damage. Colony stampede shakes Flying types from the sky (2× ADV).' },
-    { name: 'Fault Leap',   element: 'Earth', desc: '2× damage. Seismic landing devastates Flying types (2× ADV).' },
-    { name: 'Rumble Pulse', element: 'Earth', desc: '2× damage. Ground shockwave knocks Flying types down (2× ADV).' },
+    { name: 'Tremor Slam',  element: 'Earth', desc: 'Unblockable: DEF stance is ignored. Grounds Flying types (2× ADV).' },
+    { name: 'Quake March',  element: 'Earth', desc: 'Unblockable: DEF stance is ignored. Shakes Flying types from the sky (2× ADV).' },
+    { name: 'Fault Leap',   element: 'Earth', desc: 'Unblockable: DEF stance is ignored. Devastates Flying types (2× ADV).' },
+    { name: 'Rumble Pulse', element: 'Earth', desc: 'Unblockable: DEF stance is ignored. Knocks Flying types down (2× ADV).' },
   ],
   Water: [
-    { name: 'Tidal Wave',  element: 'Tide', desc: '2× damage. Massive surge drowns Ground types (2× ADV).' },
-    { name: 'Blood Flood', element: 'Tide', desc: '2× damage. Torrential drain overwhelms Ground types (2× ADV).' },
-    { name: 'Whirlpool',   element: 'Tide', desc: '2× damage. Vortex pull swallows Ground types whole (2× ADV).' },
-    { name: 'Undertow',    element: 'Tide', desc: '2× damage. Deep current drags Ground types under (2× ADV).' },
+    { name: 'Tidal Wave',  element: 'Tide', desc: 'Drains: heal half the damage dealt. Drowns Ground types (2× ADV).' },
+    { name: 'Blood Flood', element: 'Tide', desc: 'Drains: heal half the damage dealt. Overwhelms Ground types (2× ADV).' },
+    { name: 'Whirlpool',   element: 'Tide', desc: 'Drains: heal half the damage dealt. Swallows Ground types whole (2× ADV).' },
+    { name: 'Undertow',    element: 'Tide', desc: 'Drains: heal half the damage dealt. Drags Ground types under (2× ADV).' },
   ],
 };
 
@@ -29,8 +36,9 @@ export const creatures = [
     baseAtk: 5,
     baseDef: 2,
     baseSpd: 8,
+    attack:  { name: 'Skydart' },
     ability: { name: 'Aerial Dash', desc: 'Strike first regardless of speed order once per battle.' },
-    special: { name: 'Gale Slash', element: 'Wind', desc: '2× damage. Wind tears through Water types (2× ADV).' },
+    special: { name: 'Gale Slash', element: 'Wind', desc: 'Strikes twice. Wind tears through Water types (2× ADV).' },
     parts: { body: 1, head: 1, legs: 1, wings: 1 },
   },
   {
@@ -41,8 +49,9 @@ export const creatures = [
     baseAtk: 3,
     baseDef: 2,
     baseSpd: 7,
+    attack:  { name: 'Dust Flick' },
     ability: { name: 'Scale Dust', desc: 'On hit, 30% chance to reduce enemy ATK by 1 for 2 turns.' },
-    special: { name: 'Cyclone Dust', element: 'Wind', desc: '2× damage. Vortex of scales devastates Water types (2× ADV).' },
+    special: { name: 'Cyclone Dust', element: 'Wind', desc: 'Strikes twice. A vortex of scales devastates Water types (2× ADV).' },
     parts: { body: 2, head: 2, legs: 2, wings: 1 },
   },
   {
@@ -53,8 +62,9 @@ export const creatures = [
     baseAtk: 6,
     baseDef: 2,
     baseSpd: 7,
+    attack:  { name: 'Sting' },
     ability: { name: 'Sting', desc: 'Deal 2 bonus damage. Single use per battle.' },
-    special: { name: 'Thunder Sting', element: 'Lightning', desc: '2× damage. Electric charge surges through Water types (2× ADV).' },
+    special: { name: 'Thunder Sting', element: 'Lightning', desc: 'Stuns: -1 stamina next turn. Shocks Water types (2× ADV).' },
     parts: { body: 3, head: 3, legs: 3, wings: 1 },
   },
   {
@@ -65,8 +75,9 @@ export const creatures = [
     baseAtk: 7,
     baseDef: 1,
     baseSpd: 8,
+    attack:  { name: 'Needle Dive' },
     ability: { name: 'Venom Jab', desc: 'Poison target for 1 damage per turn for 3 turns.' },
-    special: { name: 'Storm Jab', element: 'Lightning', desc: '2× damage. High-voltage strike electrifies Water types (2× ADV).' },
+    special: { name: 'Storm Jab', element: 'Lightning', desc: 'Stuns: -1 stamina next turn. Electrifies Water types (2× ADV).' },
     parts: { body: 4, head: 4, legs: 4, wings: 1 },
   },
 
@@ -79,8 +90,9 @@ export const creatures = [
     baseAtk: 4,
     baseDef: 7,
     baseSpd: 3,
+    attack:  { name: 'Horn Toss' },
     ability: { name: 'Shell Guard', desc: 'Reduce next incoming damage by 3.' },
-    special: { name: 'Tremor Slam', element: 'Earth', desc: '2× damage. Earthshaking crash grounds Flying types (2× ADV).' },
+    special: { name: 'Tremor Slam', element: 'Earth', desc: 'Unblockable: DEF stance is ignored. Grounds Flying types (2× ADV).' },
     parts: { body: 1, head: 2, legs: 3, wings: 0 },
   },
   {
@@ -91,8 +103,9 @@ export const creatures = [
     baseAtk: 5,
     baseDef: 5,
     baseSpd: 4,
+    attack:  { name: 'Mandible Bite' },
     ability: { name: 'Colony Call', desc: 'Gain +2 ATK for each other Ground creature in the deck (max +6).' },
-    special: { name: 'Quake March', element: 'Earth', desc: '2× damage. Colony stampede shakes Flying types from the sky (2× ADV).' },
+    special: { name: 'Quake March', element: 'Earth', desc: 'Unblockable: DEF stance is ignored. Shakes Flying types from the sky (2× ADV).' },
     parts: { body: 2, head: 2, legs: 2, wings: 0 },
   },
   {
@@ -103,8 +116,9 @@ export const creatures = [
     baseAtk: 6,
     baseDef: 4,
     baseSpd: 5,
+    attack:  { name: 'Kick Strike' },
     ability: { name: 'Leap Strike', desc: 'Can attack back row enemies without obstruction.' },
-    special: { name: 'Fault Leap', element: 'Earth', desc: '2× damage. Seismic landing devastates Flying types (2× ADV).' },
+    special: { name: 'Fault Leap', element: 'Earth', desc: 'Unblockable: DEF stance is ignored. Devastates Flying types (2× ADV).' },
     parts: { body: 3, head: 3, legs: 3, wings: 0 },
   },
   {
@@ -115,8 +129,9 @@ export const creatures = [
     baseAtk: 4,
     baseDef: 6,
     baseSpd: 4,
+    attack:  { name: 'Leg Saw' },
     ability: { name: 'Chirp Rally', desc: 'Boost an ally\'s SPD by 2 for 1 turn.' },
-    special: { name: 'Rumble Pulse', element: 'Earth', desc: '2× damage. Ground shockwave knocks Flying types down (2× ADV).' },
+    special: { name: 'Rumble Pulse', element: 'Earth', desc: 'Unblockable: DEF stance is ignored. Knocks Flying types down (2× ADV).' },
     parts: { body: 4, head: 4, legs: 4, wings: 0 },
   },
 
@@ -129,8 +144,9 @@ export const creatures = [
     baseAtk: 5,
     baseDef: 3,
     baseSpd: 6,
+    attack:  { name: 'Skim Strike' },
     ability: { name: 'Ripple Step', desc: 'Dodge the next attack (once per battle).' },
-    special: { name: 'Tidal Wave', element: 'Tide', desc: '2× damage. Massive surge drowns Ground types (2× ADV).' },
+    special: { name: 'Tidal Wave', element: 'Tide', desc: 'Drains: heal half the damage dealt. Drowns Ground types (2× ADV).' },
     parts: { body: 1, head: 1, legs: 1, wings: 1 },
   },
   {
@@ -141,8 +157,9 @@ export const creatures = [
     baseAtk: 6,
     baseDef: 2,
     baseSpd: 7,
+    attack:  { name: 'Proboscis Stab' },
     ability: { name: 'Blood Drain', desc: 'Heal 2 HP when dealing damage.' },
-    special: { name: 'Blood Flood', element: 'Tide', desc: '2× damage. Torrential drain overwhelms Ground types (2× ADV).' },
+    special: { name: 'Blood Flood', element: 'Tide', desc: 'Drains: heal half the damage dealt. Overwhelms Ground types (2× ADV).' },
     parts: { body: 2, head: 2, legs: 2, wings: 0 },
   },
   {
@@ -153,8 +170,9 @@ export const creatures = [
     baseAtk: 4,
     baseDef: 4,
     baseSpd: 7,
+    attack:  { name: 'Surface Slash' },
     ability: { name: 'Surface Skate', desc: 'Cannot be targeted first; enemies must defeat other creatures first.' },
-    special: { name: 'Whirlpool', element: 'Tide', desc: '2× damage. Vortex pull swallows Ground types whole (2× ADV).' },
+    special: { name: 'Whirlpool', element: 'Tide', desc: 'Drains: heal half the damage dealt. Swallows Ground types whole (2× ADV).' },
     parts: { body: 3, head: 3, legs: 3, wings: 0 },
   },
   {
@@ -165,8 +183,9 @@ export const creatures = [
     baseAtk: 5,
     baseDef: 5,
     baseSpd: 5,
+    attack:  { name: 'Deep Lunge' },
     ability: { name: 'Submerse', desc: 'Skip a turn to become untargetable; emerge next turn with +3 ATK.' },
-    special: { name: 'Undertow', element: 'Tide', desc: '2× damage. Deep current drags Ground types under (2× ADV).' },
+    special: { name: 'Undertow', element: 'Tide', desc: 'Drains: heal half the damage dealt. Drags Ground types under (2× ADV).' },
     parts: { body: 4, head: 4, legs: 4, wings: 0 },
   },
 ];

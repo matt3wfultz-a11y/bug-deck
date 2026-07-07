@@ -1,13 +1,15 @@
 import GameState from '../systems/GameState.js';
 import { creatures as creatureData } from '../data/creatures.js';
+import { registerSvgTextures } from '../art/SvgParts.js';
+import { registerCardTexture, createBugCard } from '../art/BugCard.js';
 
-const MAX_DECK  = 5;
-const CARD_W    = 186;
-const CARD_H    = 82;
-const COLS      = 4;
-const GRID_GAP  = 8;
-const GRID_X    = 16;
-const GRID_Y    = 98;
+const MAX_DECK   = 5;
+const CARD_SCALE = 0.44;         // full bug cards: 300×400 → 132×176
+const CARD_W     = 300 * CARD_SCALE;
+const CARD_H     = 400 * CARD_SCALE;
+const GRID_GAP   = 12;
+const GRID_Y     = 98;           // top of the card row
+const FARM_PER_PAGE = 5;
 
 const SLOT_W    = 140;
 const SLOT_H    = 68;
@@ -40,12 +42,18 @@ export default class DeckBuilderScene extends Phaser.Scene {
     super('DeckBuilderScene');
   }
 
+  preload() {
+    registerSvgTextures(this);
+    registerCardTexture(this);
+  }
+
   create() {
     const { width } = this.scale;
 
     this._tab      = GameState.selectedArchetype || 'Flying';
     this._deck     = [];   // array of creature plain-data objects (max 5)
     this._gridObjs = [];
+    this._farmPage = 0;
 
     // ── Header ────────────────────────────────────────────────────────────────
     this.add.rectangle(width / 2, 0, width, 58, 0x0d0d1a).setOrigin(0.5, 0);
@@ -186,7 +194,8 @@ export default class DeckBuilderScene extends Phaser.Scene {
   // ── Tab ───────────────────────────────────────────────────────────────────
 
   _switchTab(tab) {
-    this._tab = tab;
+    this._tab      = tab;
+    this._farmPage = 0;
     this._clearGrid();
     this._buildGrid();
     this._refreshTabs();
@@ -208,71 +217,86 @@ export default class DeckBuilderScene extends Phaser.Scene {
   }
 
   _buildGrid() {
+    const { width } = this.scale;
     const pool = this._getPool();
 
     if (pool.length === 0) {
       const msg = this._tab === 'Farm'
         ? 'No farm creatures yet.\nWin battles and capture some!'
         : 'No creatures available.';
-      const t = this.add.text(400, 228, msg, {
+      const t = this.add.text(400, 210, msg, {
         fontSize: '16px', color: '#333355', fontFamily: 'monospace', align: 'center',
       }).setOrigin(0.5);
       this._gridObjs.push(t);
       return;
     }
 
-    pool.slice(0, COLS * 3).forEach((creature, i) => {
-      const col = i % COLS;
-      const row = Math.floor(i / COLS);
-      const cx  = GRID_X + col * (CARD_W + GRID_GAP);
-      const cy  = GRID_Y + row * (CARD_H + GRID_GAP);
-      this._buildCard(creature, cx, cy);
+    // One row of full cards; Farm paginates 5 per page
+    const isFarm     = this._tab === 'Farm';
+    const totalPages = isFarm ? Math.max(1, Math.ceil(pool.length / FARM_PER_PAGE)) : 1;
+    this._farmPage   = Math.min(this._farmPage, totalPages - 1);
+    const slice = isFarm
+      ? pool.slice(this._farmPage * FARM_PER_PAGE, this._farmPage * FARM_PER_PAGE + FARM_PER_PAGE)
+      : pool.slice(0, FARM_PER_PAGE);
+
+    const rowW = slice.length * CARD_W + (slice.length - 1) * GRID_GAP;
+    const x0   = (width - rowW) / 2;
+
+    slice.forEach((creature, i) => {
+      const cx = x0 + i * (CARD_W + GRID_GAP);
+      this._buildCard(creature, cx, GRID_Y);
     });
+
+    if (isFarm && totalPages > 1) {
+      const navY = GRID_Y + CARD_H + 14;
+      if (this._farmPage > 0) {
+        this._gridObjs.push(this._makePageBtn(width / 2 - 90, navY, '< PREV', () => {
+          this._farmPage--; this._clearGrid(); this._buildGrid();
+        }));
+      }
+      if (this._farmPage < totalPages - 1) {
+        this._gridObjs.push(this._makePageBtn(width / 2 + 90, navY, 'NEXT >', () => {
+          this._farmPage++; this._clearGrid(); this._buildGrid();
+        }));
+      }
+      this._gridObjs.push(this.add.text(width / 2, navY, `${this._farmPage + 1} / ${totalPages}`, {
+        fontSize: '12px', color: '#445566', fontFamily: 'monospace',
+      }).setOrigin(0.5));
+    }
   }
 
   _buildCard(creature, cx, cy) {
     const alreadyPicked = creature.uid && this._deck.some(d => d.uid === creature.uid);
-    const archColor     = alreadyPicked ? '#444455' : (ARCH_COLOR[creature.archetype] || '#aaaaaa');
-    const alpha         = alreadyPicked ? 0.38 : 1;
 
-    const bg = this.add.rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H,
-      alreadyPicked ? 0x080810 : 0x0d0d1a);
-    const gfx = this.add.graphics();
-    gfx.lineStyle(1, alreadyPicked ? 0x1a1a2a : 0x2a2a50, 1);
-    gfx.strokeRect(cx, cy, CARD_W, CARD_H);
+    const card = createBugCard(this, cx + CARD_W / 2, cy + CARD_H / 2, creature, CARD_SCALE);
+    this._gridObjs.push(card);
 
-    const nameT = this.add.text(cx + CARD_W / 2, cy + 7, creature.name, {
-      fontSize: '13px', color: archColor, fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5, 0).setAlpha(alpha);
-
-    const statsT = this.add.text(cx + CARD_W / 2, cy + 26,
-      `HP:${creature.baseHp}  ATK:${creature.baseAtk}  DEF:${creature.baseDef}  SPD:${creature.baseSpd}`,
-      { fontSize: '10px', color: '#cccccc', fontFamily: 'monospace' }
-    ).setOrigin(0.5, 0).setAlpha(alpha);
-
-    const abilT = this.add.text(cx + CARD_W / 2, cy + 43,
-      alreadyPicked ? '✓ IN DECK' : `\u2726 ${creature.ability.name}`,
-      { fontSize: '9px', color: alreadyPicked ? '#336633' : '#665577', fontFamily: 'monospace' }
-    ).setOrigin(0.5, 0).setAlpha(alreadyPicked ? 0.7 : 1);
-
-    const sp     = creature.special;
-    const spT    = this.add.text(cx + CARD_W / 2, cy + 57,
-      sp ? `\u26a1 ${sp.name}` : '',
-      { fontSize: '8px', color: '#884488', fontFamily: 'monospace' }
-    ).setOrigin(0.5, 0).setAlpha(alreadyPicked ? 0.4 : 0.85);
-    this._gridObjs.push(spT);
-
-    if (!alreadyPicked) {
-      const hit = this.add
-        .rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H, 0x000000, 0)
-        .setInteractive({ useHandCursor: true });
-      hit.on('pointerover', () => bg.setFillStyle(0x111133));
-      hit.on('pointerout',  () => bg.setFillStyle(0x0d0d1a));
-      hit.on('pointerdown', () => this._addToDeck(creature));
-      this._gridObjs.push(hit);
+    if (alreadyPicked) {
+      card.setAlpha(0.35);
+      this._gridObjs.push(this.add.text(cx + CARD_W / 2, cy + CARD_H / 2, '\u2713 IN DECK', {
+        fontSize: '14px', color: '#66cc66', fontFamily: 'monospace', fontStyle: 'bold',
+        backgroundColor: '#0a140a', padding: { x: 8, y: 5 },
+      }).setOrigin(0.5));
+      return;
     }
 
-    this._gridObjs.push(bg, gfx, nameT, statsT, abilT);
+    const hit = this.add
+      .rectangle(cx + CARD_W / 2, cy + CARD_H / 2, CARD_W, CARD_H, 0x000000, 0)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerover', () => card.setScale(CARD_SCALE * 1.04));
+    hit.on('pointerout',  () => card.setScale(CARD_SCALE));
+    hit.on('pointerdown', () => this._addToDeck(creature));
+    this._gridObjs.push(hit);
+  }
+
+  _makePageBtn(x, y, label, cb) {
+    const btn = this.add.text(x, y, label, {
+      fontSize: '12px', color: '#445566', fontFamily: 'monospace',
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    btn.on('pointerover', () => btn.setColor('#8899aa'));
+    btn.on('pointerout',  () => btn.setColor('#445566'));
+    btn.on('pointerdown', cb);
+    return btn;
   }
 
   // ── Deck management ───────────────────────────────────────────────────────

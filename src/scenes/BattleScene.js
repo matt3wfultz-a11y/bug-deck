@@ -4,18 +4,21 @@ import BattleQueue      from '../systems/BattleQueue.js';
 import GameState        from '../systems/GameState.js';
 import { creatures as creatureData } from '../data/creatures.js';
 import { registerSvgTextures, createBugContainer, destroyBugContainer } from '../art/SvgParts.js';
+import { registerCardTexture, createBugCard } from '../art/BugCard.js';
 
 const BAR_W          = 200;
 const BAR_H          = 12;
 const ALL_ARCHETYPES = ['Flying', 'Ground', 'Water'];
 
-const HC_W      = 147;
-const HC_H      = 155;
+// Hand row: full card frames at battle scale (300×400 → 147×196)
+const HC_SCALE  = 0.49;
+const HC_W      = 300 * HC_SCALE;
+const HC_H      = 400 * HC_SCALE;
 const HC_GAP    = 8;
 const HC_X0     = 16;
 const HC_Y      = 372;
-const HC_BAR_W  = 131;
-const HC_BAR_H  = 5;
+const HC_BAR_W  = 110;
+const HC_BAR_H  = 6;
 
 const ARCH_COLOR   = { Flying: '#ffdd44', Ground: '#cc9944', Water: '#66aaff' };
 const DEFEND_RATIO = 0.5; // incoming damage multiplier when defending
@@ -31,6 +34,7 @@ export default class BattleScene extends Phaser.Scene {
 
   preload() {
     registerSvgTextures(this);
+    registerCardTexture(this);
   }
 
   create() {
@@ -789,58 +793,66 @@ export default class BattleScene extends Phaser.Scene {
     this._handCards = [];
 
     for (let i = 0; i < this._deckRoster.length; i++) {
-      const cx = HC_X0 + i * (HC_W + HC_GAP);
-      const cy = HC_Y;
+      const cx  = HC_X0 + i * (HC_W + HC_GAP);
+      const cy  = HC_Y;
+      const ccx = cx + HC_W / 2;
+      const ccy = cy + HC_H / 2;
 
-      const bg       = this.add.rectangle(cx + HC_W / 2, cy + HC_H / 2, HC_W, HC_H, 0x0d0d1a);
-      const border   = this.add.graphics();
-      const nameText = this.add.text(cx + HC_W / 2, cy + 6, '', {
-        fontSize: '11px', fontFamily: 'monospace', fontStyle: 'bold',
-      }).setOrigin(0.5, 0);
-      const archText = this.add.text(cx + HC_W / 2, cy + 20, '', {
-        fontSize: '9px', color: '#444466', fontFamily: 'monospace',
-      }).setOrigin(0.5, 0);
-      const hpBarBg   = this.add.rectangle(cx + 8, cy + 33, HC_BAR_W, HC_BAR_H, 0x2a2a2a).setOrigin(0, 0.5);
-      const hpBarFill = this.add.rectangle(cx + 8, cy + 33, HC_BAR_W, HC_BAR_H, 0x44ff44).setOrigin(0, 0.5);
-      const hpText    = this.add.text(cx + HC_W / 2, cy + 40, '', {
-        fontSize: '9px', color: '#aaffaa', fontFamily: 'monospace',
-      }).setOrigin(0.5, 0);
-      const bugContainer = createBugContainer(
-        this, cx + HC_W / 2, cy + 88, this._deckRoster[i]?.parts, 0.38
-      );
-      const statusText = this.add.text(cx + HC_W / 2, cy + HC_H - 22, '', {
-        fontSize: '10px', fontFamily: 'monospace',
-      }).setOrigin(0.5, 0);
+      const creature = this._deckRoster[i];
+      const stats    = creature.getStats();
+      const card = createBugCard(this, ccx, ccy, {
+        id: creature.id, name: creature.name, archetype: creature.archetype,
+        ability: creature.ability, special: creature.special, attack: creature.attack,
+        parts: creature.parts,
+        baseHp: stats.hp, baseAtk: stats.atk, baseDef: stats.def, baseSpd: stats.spd,
+      }, HC_SCALE);
+
+      const border = this.add.graphics();
+
+      // Battle overlays: live HP bar over the parchment bottom + status below the card
+      const hpBarBg   = this.add.rectangle(ccx, ccy + 76, HC_BAR_W, HC_BAR_H, 0x1a1a1a).setDepth(2);
+      const hpBarFill = this.add.rectangle(ccx - HC_BAR_W / 2, ccy + 76, HC_BAR_W, HC_BAR_H, 0x44ff44)
+        .setOrigin(0, 0.5).setDepth(2);
+      const hpText = this.add.text(ccx, ccy + 89, '', {
+        fontSize: '10px', color: '#eaffea', fontFamily: 'monospace', fontStyle: 'bold',
+        backgroundColor: '#0d0d1a', padding: { x: 3, y: 1 },
+      }).setOrigin(0.5).setDepth(2);
+
+      const statusText = this.add.text(ccx, cy + HC_H + 9, '', {
+        fontSize: '10px', fontFamily: 'monospace', fontStyle: 'bold',
+      }).setOrigin(0.5);
+
+      const advText = this.add.text(cx + HC_W - 12, cy + 6, '', {
+        fontSize: '14px', fontFamily: 'monospace', fontStyle: 'bold',
+      }).setOrigin(1, 0).setDepth(2);
 
       const hit = this.add
-        .rectangle(cx + HC_W / 2, cy + HC_H / 2, HC_W, HC_H, 0x000000, 0)
+        .rectangle(ccx, ccy, HC_W, HC_H, 0x000000, 0)
         .setInteractive({ useHandCursor: true });
 
       const ii = i;
       hit.on('pointerover', () => {
         const c = this._deckRoster[ii];
-        if (this._deployPhase     && c?.isAlive()) bg.setFillStyle(0x1a1a3a);
-        if (this._swapSelectPhase && c?.isAlive() && c !== this._activeCreature) bg.setFillStyle(0x2a1a3a);
+        const canPick = (this._deployPhase || this._swapSelectPhase)
+          && c?.isAlive() && c !== this._activeCreature;
+        if (canPick) card.setScale(HC_SCALE * 1.03);
       });
-      hit.on('pointerout', () => {
-        if (!this._deployPhase && !this._swapSelectPhase) bg.setFillStyle(0x0d0d1a);
-        else this._refreshHandCard(ii);
-      });
+      hit.on('pointerout', () => card.setScale(HC_SCALE));
       hit.on('pointerdown', () => {
         const c = this._deckRoster[ii];
         if (this._deployPhase     && c?.isAlive()) this._deployCreature(ii);
         else if (this._swapSelectPhase && c?.isAlive() && c !== this._activeCreature) this._queueSwap(ii);
       });
 
-      this._handCards.push({ cx, cy, bg, border, nameText, archText,
-        hpBarBg, hpBarFill, hpText, bugContainer, statusText, hit });
+      this._handCards.push({ cx, cy, ccx, ccy, card, border,
+        hpBarBg, hpBarFill, hpText, statusText, advText, hit });
     }
   }
 
   _refreshHandCard(i) {
-    const card     = this._handCards[i];
+    const c        = this._handCards[i];
     const creature = this._deckRoster[i];
-    if (!card || !creature) return;
+    if (!c || !creature) return;
 
     const alive     = creature.isAlive();
     const isActive  = creature === this._activeCreature && alive;
@@ -849,46 +861,42 @@ export default class BattleScene extends Phaser.Scene {
     const canSwap   = this._swapSelectPhase && alive && !isActive;
     const stats     = creature.getStats();
 
-    card.bg.setFillStyle(isDead ? 0x080808 : isActive ? 0x0a0a22 : 0x0d0d1a);
+    c.card.setAlpha(isDead ? 0.28 : 1);
 
-    card.border.clear();
-    let borderColor = 0x1a1a3a, borderW = 1;
-    if (isActive)       { borderColor = 0x4466bb; borderW = 2; }
-    else if (canDeploy) { borderColor = 0xffdd44; borderW = 2; }
-    else if (canSwap)   { borderColor = 0xcc88ff; borderW = 2; }
-    else if (isDead)    { borderColor = 0x220000; }
-    card.border.lineStyle(borderW, borderColor, 1);
-    card.border.strokeRect(card.cx, card.cy, HC_W, HC_H);
-
-    const archColor   = ARCH_COLOR[creature.archetype] || '#aaaaaa';
-    const alpha       = isDead ? 0.35 : 1;
-    const displayName = creature.name.length > 16 ? creature.name.slice(0, 15) + '\u2026' : creature.name;
-    card.nameText.setText(displayName).setColor(archColor).setAlpha(alpha);
-
-    const activeEnemy = this.battleSystem.enemyHand.find(c => c.isAlive());
-    let archLabel = `[${creature.archetype}]`, archColor2 = '#444466';
-    if (!isDead && activeEnemy) {
-      if (ADVANTAGE[creature.archetype] === activeEnemy.archetype)        { archLabel = `[${creature.archetype}] \u2191`; archColor2 = '#66cc66'; }
-      else if (ADVANTAGE[activeEnemy.archetype] === creature.archetype)   { archLabel = `[${creature.archetype}] \u2193`; archColor2 = '#cc5555'; }
+    c.border.clear();
+    let borderColor = null;
+    if (isActive)       borderColor = 0x66aaff;
+    else if (canDeploy) borderColor = 0xffdd44;
+    else if (canSwap)   borderColor = 0xcc88ff;
+    if (borderColor !== null) {
+      c.border.lineStyle(3, borderColor, 1);
+      c.border.strokeRect(c.cx - 2, c.cy - 2, HC_W + 4, HC_H + 4);
     }
-    card.archText.setText(archLabel).setColor(archColor2).setAlpha(isDead ? 0.25 : 0.85);
 
     const ratio = Math.max(0, creature.currentHP / stats.hp);
-    card.hpBarFill.setSize(Math.max(2, Math.floor(HC_BAR_W * ratio)), HC_BAR_H);
-    card.hpBarFill.setFillStyle(isDead ? 0x333333 : ratio > 0.5 ? 0x44ff44 : ratio > 0.25 ? 0xffdd44 : 0xff3333);
-    card.hpText
+    c.hpBarFill.setSize(Math.max(2, Math.floor(HC_BAR_W * ratio)), HC_BAR_H);
+    c.hpBarFill.setFillStyle(isDead ? 0x333333 : ratio > 0.5 ? 0x44ff44 : ratio > 0.25 ? 0xffdd44 : 0xff3333);
+    c.hpText
       .setText(isDead ? 'FAINTED' : `${Math.max(0, creature.currentHP)}/${stats.hp}`)
-      .setColor(isDead ? '#441111' : '#aaffaa').setAlpha(alpha);
+      .setColor(isDead ? '#cc6666' : '#eaffea');
+    c.hpBarBg.setVisible(!isDead);
+    c.hpBarFill.setVisible(!isDead);
 
-    if (card.bugContainer) {
-      card.bugContainer.setAlpha(isDead ? 0.25 : 1);
+    // Advantage marker vs the current enemy
+    const activeEnemy = this.battleSystem.enemyHand.find(en => en.isAlive());
+    let advTxt = '';
+    let advColor = '#888888';
+    if (!isDead && activeEnemy) {
+      if (ADVANTAGE[creature.archetype] === activeEnemy.archetype)      { advTxt = '\u2191'; advColor = '#66ff66'; }
+      else if (ADVANTAGE[activeEnemy.archetype] === creature.archetype) { advTxt = '\u2193'; advColor = '#ff6666'; }
     }
+    c.advText.setText(advTxt).setColor(advColor);
 
-    if (isActive)       card.statusText.setText('\u25b2 ACTIVE').setColor('#5588cc');
-    else if (isDead)    card.statusText.setText('\u2715 FAINTED').setColor('#442222');
-    else if (canDeploy) card.statusText.setText('\u25ba DEPLOY').setColor('#ffdd44');
-    else if (canSwap)   card.statusText.setText('\u21c4 SWAP IN').setColor('#cc88ff');
-    else                card.statusText.setText('');
+    if (isActive)       c.statusText.setText('\u25b2 ACTIVE').setColor('#66aaff');
+    else if (isDead)    c.statusText.setText('\u2715 FAINTED').setColor('#664444');
+    else if (canDeploy) c.statusText.setText('\u25ba DEPLOY').setColor('#ffdd44');
+    else if (canSwap)   c.statusText.setText('\u21c4 SWAP IN').setColor('#cc88ff');
+    else                c.statusText.setText('');
   }
 
   _refreshHandUI() {

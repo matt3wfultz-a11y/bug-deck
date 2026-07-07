@@ -26,7 +26,7 @@ Then open http://localhost:3456 in a browser. Phaser is vendored in `vendor/`, s
 
 ### Cards & special attacks
 
-The deck builder shows each bug as a full card (frame art from `assets/card-frame.svg`): composited portrait, stats, its named basic attack, ability, and special attack. Every special element has a unique damage mechanic on top of the 2× advantage bonus:
+Bugs are rendered as full cards (frame art from `assets/card-frame.svg`) everywhere they're presented — the deck builder pool, the battle hand row (with live HP bar and ACTIVE/DEPLOY/FAINTED states layered on top), and the capture screen: composited portrait, stats, named basic attack, ability, and special attack. Every special element has a unique damage mechanic on top of the 2× advantage bonus:
 
 | Element | Mechanic |
 |---|---|

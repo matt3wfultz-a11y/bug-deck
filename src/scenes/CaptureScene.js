@@ -1,5 +1,6 @@
 import GameState from '../systems/GameState.js';
 import { registerSvgTextures, createBugContainer, destroyBugContainer } from '../art/SvgParts.js';
+import { registerCardTexture, createBugCard } from '../art/BugCard.js';
 
 // Catch arena bounds (bug darts within this box during the minigame)
 const ARENA      = { x: 16, y: 96, w: 768, h: 380 };
@@ -19,6 +20,7 @@ export default class CaptureScene extends Phaser.Scene {
 
   preload() {
     registerSvgTextures(this);
+    registerCardTexture(this);
   }
 
   create() {
@@ -58,45 +60,24 @@ export default class CaptureScene extends Phaser.Scene {
     const objs = [];
     this._introObjs = objs;
 
-    const cardY = 90;
-    const cardW = 320;
-    const cardH = 230;
-
-    objs.push(this.add.rectangle(width / 2, cardY + cardH / 2, cardW, cardH, 0x111122)
-      .setStrokeStyle(1, 0x4444aa));
-
-    const bug = createBugContainer(this, width / 2, cardY + 64, creature.parts, 0.42);
-    objs.push(bug);
-
     const stats = creature.getStats();
 
-    objs.push(this.add.text(width / 2, cardY + 12, creature.name, {
-      fontSize: '22px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
-    }).setOrigin(0.5));
-
-    objs.push(this.add.text(width / 2, cardY + 104, `[${creature.archetype}]`, {
-      fontSize: '13px', color: '#888888', fontFamily: 'monospace',
-    }).setOrigin(0.5));
-
-    objs.push(this.add.text(width / 2, cardY + 128,
-      `HP ${Math.max(0, creature.currentHP)}/${stats.hp}   ATK ${stats.atk}   DEF ${stats.def}   SPD ${stats.spd}`,
-      { fontSize: '14px', color: '#cccccc', fontFamily: 'monospace' }
-    ).setOrigin(0.5));
-
-    objs.push(this.add.text(width / 2, cardY + 156,
-      `✦ ${creature.ability.name}: ${creature.ability.desc}`,
-      {
-        fontSize: '12px', color: '#aaaaaa', fontFamily: 'monospace',
-        wordWrap: { width: cardW - 24 }, align: 'center',
-      }
-    ).setOrigin(0.5));
+    // The creature's card, same as deck builder / battle hand
+    const card = createBugCard(this, width / 2, 216, {
+      id: creature.id, name: creature.name, archetype: creature.archetype,
+      ability: creature.ability, special: creature.special, attack: creature.attack,
+      parts: creature.parts,
+      baseHp: stats.hp, baseAtk: stats.atk, baseDef: stats.def, baseSpd: stats.spd,
+    }, 0.62);
+    objs.push(card);
 
     // Speed hint: fast bugs are harder to net
     const spdWarn = stats.spd >= 7 ? 'It looks quick — aim carefully!' :
                     stats.spd >= 5 ? 'It scurries about nervously.' :
                                      'It moves sluggishly. Easy prey.';
-    objs.push(this.add.text(width / 2, cardY + 200, spdWarn, {
-      fontSize: '11px', color: '#ffdd44', fontFamily: 'monospace',
+    objs.push(this.add.text(width / 2, 356, spdWarn, {
+      fontSize: '12px', color: '#ffdd44', fontFamily: 'monospace',
+      backgroundColor: '#0d0d1a', padding: { x: 6, y: 3 },
     }).setOrigin(0.5));
 
     const swings = this._totalSwings();

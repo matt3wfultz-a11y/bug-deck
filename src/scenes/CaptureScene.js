@@ -1,19 +1,24 @@
 import GameState from '../systems/GameState.js';
-import { registerSvgTextures, createBugContainer } from '../art/SvgParts.js';
+import { registerSvgTextures, createBugContainer, destroyBugContainer } from '../art/SvgParts.js';
+
+// Catch arena bounds (bug darts within this box during the minigame)
+const ARENA      = { x: 16, y: 96, w: 768, h: 380 };
+const NET_RADIUS = 52;
+const BASE_SWINGS = 3;
 
 export default class CaptureScene extends Phaser.Scene {
   constructor() {
     super('CaptureScene');
   }
 
-  preload() {
-    registerSvgTextures(this);
-  }
-
   init(data) {
     // Receive the capturable Creature instance from BattleScene (may be null)
     this._capturable  = data?.capturable  ?? null;
     this._returnToMap = data?.returnToMap ?? false;
+  }
+
+  preload() {
+    registerSvgTextures(this);
   }
 
   create() {
@@ -26,13 +31,11 @@ export default class CaptureScene extends Phaser.Scene {
       fontSize: '22px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    this.add.text(width / 2, 42, 'A wild creature is weakened...', {
+    this._subtitle = this.add.text(width / 2, 42, 'A wild creature is weakened...', {
       fontSize: '13px', color: '#888888', fontFamily: 'monospace',
     }).setOrigin(0.5);
 
-    const creature = this._capturable;
-
-    if (!creature) {
+    if (!this._capturable) {
       // ── No capture available ───────────────────────────────────────────────
       this.add.text(width / 2, height / 2 - 40, 'No creature to capture.', {
         fontSize: '20px', color: '#aaaaaa', fontFamily: 'monospace',
@@ -41,76 +44,303 @@ export default class CaptureScene extends Phaser.Scene {
       this._makeButton(width / 2, height / 2 + 30, 'CONTINUE', '#ffffff', () => {
         this._completeCapture();
       });
-    } else {
-      // ── Creature card ─────────────────────────────────────────────────────
-      const cardX  = width / 2 - 160;
-      const cardY  = 90;
-      const cardW  = 320;
-      const cardH  = 220;
+      return;
+    }
 
-      this.add.rectangle(width / 2, cardY + cardH / 2, cardW, cardH, 0x111122).setOrigin(0.5);
-      this.add.rectangle(width / 2, cardY + cardH / 2, cardW, cardH, 0x2a2a50)
-        .setOrigin(0.5).setFillStyle(0x111122).setStrokeStyle(1, 0x4444aa);
+    this._showIntro();
+  }
 
-      createBugContainer(this, width / 2, cardY + 60, creature.parts, 0.42);
+  // ── Phase 1: intro card ─────────────────────────────────────────────────────
 
-      const stats = creature.getStats();
+  _showIntro() {
+    const { width, height } = this.scale;
+    const creature = this._capturable;
+    const objs = [];
+    this._introObjs = objs;
 
-      this.add.text(width / 2, cardY + 12, creature.name, {
-        fontSize: '22px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
-      }).setOrigin(0.5);
+    const cardY = 90;
+    const cardW = 320;
+    const cardH = 230;
 
-      this.add.text(width / 2, cardY + 96, `[${creature.archetype}]`, {
-        fontSize: '13px', color: '#888888', fontFamily: 'monospace',
-      }).setOrigin(0.5);
+    objs.push(this.add.rectangle(width / 2, cardY + cardH / 2, cardW, cardH, 0x111122)
+      .setStrokeStyle(1, 0x4444aa));
 
-      // Stats row
-      this.add.text(width / 2, cardY + 120,
-        `HP ${Math.max(0, creature.currentHP)}/${stats.hp}   ATK ${stats.atk}   DEF ${stats.def}   SPD ${stats.spd}`,
-        { fontSize: '14px', color: '#cccccc', fontFamily: 'monospace' }
-      ).setOrigin(0.5);
+    const bug = createBugContainer(this, width / 2, cardY + 64, creature.parts, 0.42);
+    objs.push(bug);
 
-      // Ability
-      this.add.text(width / 2, cardY + 148,
-        `✦ ${creature.ability.name}: ${creature.ability.desc}`,
-        {
-          fontSize: '12px', color: '#aaaaaa', fontFamily: 'monospace',
-          wordWrap: { width: cardW - 24 }, align: 'center',
-        }
-      ).setOrigin(0.5);
+    const stats = creature.getStats();
 
-      // ── Buttons ───────────────────────────────────────────────────────────
-      const handFull = (GameState.selectedDeck || []).length >= 5;
+    objs.push(this.add.text(width / 2, cardY + 12, creature.name, {
+      fontSize: '22px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5));
 
-      if (handFull) {
-        // Greyed-out HAND button (non-interactive)
-        this.add.text(width / 2 - 110, height - 130, '[ HAND ]', {
-          fontSize: '20px', color: '#333344', fontFamily: 'monospace',
-          backgroundColor: '#0d0d1a', padding: { x: 14, y: 8 },
-        }).setOrigin(0.5);
-        this.add.text(width / 2 - 110, height - 100, 'Hand full (5/5)', {
-          fontSize: '10px', color: '#443333', fontFamily: 'monospace',
-        }).setOrigin(0.5);
-      } else {
-        this._makeButton(width / 2 - 110, height - 130, 'HAND', '#a8ff78', () => {
-          GameState.addToHand(creature);
-          this._completeCapture();
-        });
+    objs.push(this.add.text(width / 2, cardY + 104, `[${creature.archetype}]`, {
+      fontSize: '13px', color: '#888888', fontFamily: 'monospace',
+    }).setOrigin(0.5));
+
+    objs.push(this.add.text(width / 2, cardY + 128,
+      `HP ${Math.max(0, creature.currentHP)}/${stats.hp}   ATK ${stats.atk}   DEF ${stats.def}   SPD ${stats.spd}`,
+      { fontSize: '14px', color: '#cccccc', fontFamily: 'monospace' }
+    ).setOrigin(0.5));
+
+    objs.push(this.add.text(width / 2, cardY + 156,
+      `✦ ${creature.ability.name}: ${creature.ability.desc}`,
+      {
+        fontSize: '12px', color: '#aaaaaa', fontFamily: 'monospace',
+        wordWrap: { width: cardW - 24 }, align: 'center',
       }
+    ).setOrigin(0.5));
 
-      this._makeButton(width / 2 + 110, height - 130, 'FARM', '#66aaff', () => {
-        GameState.addToFarm(creature);
-        this._completeCapture();
+    // Speed hint: fast bugs are harder to net
+    const spdWarn = stats.spd >= 7 ? 'It looks quick — aim carefully!' :
+                    stats.spd >= 5 ? 'It scurries about nervously.' :
+                                     'It moves sluggishly. Easy prey.';
+    objs.push(this.add.text(width / 2, cardY + 200, spdWarn, {
+      fontSize: '11px', color: '#ffdd44', fontFamily: 'monospace',
+    }).setOrigin(0.5));
+
+    const swings = this._totalSwings();
+    const jars   = swings - BASE_SWINGS;
+    objs.push(this.add.text(width / 2, height - 170,
+      `You have ${swings} net swings${jars > 0 ? `  (+${jars} from Jars)` : ''}`,
+      { fontSize: '13px', color: '#88bbff', fontFamily: 'monospace' }
+    ).setOrigin(0.5));
+
+    objs.push(this._makeButton(width / 2 - 110, height - 130, 'CATCH IT!', '#a8ff78', () => {
+      objs.forEach(o => o.destroy());
+      this._startMinigame();
+    }));
+
+    objs.push(this._makeButton(width / 2 + 110, height - 130, 'LET IT GO', '#8899aa', () => {
+      this._completeCapture();
+    }));
+
+    objs.push(this.add.text(width / 2, height - 88,
+      'Swing your net with a click — catch it before it wears you out!',
+      { fontSize: '12px', color: '#555566', fontFamily: 'monospace' }
+    ).setOrigin(0.5));
+  }
+
+  _totalSwings() {
+    const jarCount = GameState.itemInventory.filter(i => i.id === 'jar').length;
+    return BASE_SWINGS + Math.min(2, jarCount);
+  }
+
+  // ── Phase 2: net-swing minigame ─────────────────────────────────────────────
+
+  _startMinigame() {
+    const { width } = this.scale;
+    const creature = this._capturable;
+
+    this._swingsLeft = this._totalSwings();
+    this._gameOver   = false;
+
+    this._subtitle.setText('Click to swing your net!');
+
+    // Arena border
+    this._arenaGfx = this.add.graphics();
+    this._arenaGfx.lineStyle(1, 0x2a2a50, 1);
+    this._arenaGfx.strokeRect(ARENA.x, ARENA.y, ARENA.w, ARENA.h);
+
+    this._swingsText = this.add.text(width - 20, ARENA.y + 10, '', {
+      fontSize: '14px', color: '#88ff88', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(1, 0).setDepth(10);
+    this._updateSwingsText();
+
+    this._missText = this.add.text(width / 2, ARENA.y + 24, '', {
+      fontSize: '18px', color: '#ff6b6b', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(10);
+
+    // The bug
+    this._bug = createBugContainer(
+      this,
+      ARENA.x + ARENA.w / 2,
+      ARENA.y + ARENA.h / 2,
+      creature.parts,
+      0.5
+    );
+    this._bug.setDepth(5);
+
+    // Net cursor ring follows the pointer
+    this._netCursor = this.add.circle(width / 2, ARENA.y + ARENA.h / 2, NET_RADIUS)
+      .setStrokeStyle(2, 0x88ff88, 0.9).setDepth(8);
+
+    this.input.on('pointermove', this._onPointerMove, this);
+
+    // Click anywhere in the arena to swing
+    this._arenaHit = this.add
+      .rectangle(ARENA.x + ARENA.w / 2, ARENA.y + ARENA.h / 2, ARENA.w, ARENA.h, 0x000000, 0)
+      .setInteractive();
+    this._arenaHit.on('pointerdown', pointer => this._swing(pointer.x, pointer.y));
+
+    this._scheduleDart();
+  }
+
+  _onPointerMove(pointer) {
+    if (!this._netCursor || this._gameOver) return;
+    const x = Phaser.Math.Clamp(pointer.x, ARENA.x, ARENA.x + ARENA.w);
+    const y = Phaser.Math.Clamp(pointer.y, ARENA.y, ARENA.y + ARENA.h);
+    this._netCursor.setPosition(x, y);
+  }
+
+  _scheduleDart(startled = false) {
+    if (this._gameOver) return;
+    const spd   = this._capturable.getStats().spd;
+    const pause = startled ? 60 : 250 + Math.random() * 450;
+
+    this._dartTimer = this.time.delayedCall(pause, () => {
+      if (this._gameOver) return;
+      const pad = 70;
+      const tx  = ARENA.x + pad + Math.random() * (ARENA.w - pad * 2);
+      const ty  = ARENA.y + pad + Math.random() * (ARENA.h - pad * 2);
+      const dist    = Phaser.Math.Distance.Between(this._bug.x, this._bug.y, tx, ty);
+      const speedPx = 180 + spd * 55; // faster bugs dart quicker
+
+      this._bug.scaleX = tx < this._bug.x ? -1 : 1;
+      this._dartTween = this.tweens.add({
+        targets:  this._bug,
+        x: tx, y: ty,
+        duration: Math.max(120, (dist / speedPx) * 1000),
+        ease:     'Sine.easeInOut',
+        onComplete: () => this._scheduleDart(),
       });
+    });
+  }
 
-      this.add.text(width / 2, height - 88,
-        handFull
-          ? 'Hand is full \u2014 must send to FARM'
-          : 'HAND adds to active run   |   FARM stores permanently',
-        { fontSize: '12px', color: handFull ? '#884444' : '#555566', fontFamily: 'monospace' }
-      ).setOrigin(0.5);
+  _swing(px, py) {
+    if (this._gameOver || this._swingsLeft <= 0) return;
+
+    this._swingsLeft--;
+    this._updateSwingsText();
+
+    // Swing swipe effect
+    const swipe = this.add.circle(px, py, NET_RADIUS * 0.4)
+      .setStrokeStyle(3, 0xaaffaa, 1).setDepth(9);
+    this.tweens.add({
+      targets: swipe, radius: NET_RADIUS, alpha: 0, duration: 240,
+      onComplete: () => swipe.destroy(),
+    });
+
+    const d = Phaser.Math.Distance.Between(px, py, this._bug.x, this._bug.y);
+    if (d <= NET_RADIUS + 6) {
+      this._onCaught();
+    } else if (this._swingsLeft <= 0) {
+      this._onEscaped();
+    } else {
+      // Missed — the startled bug darts away immediately
+      this._flashMiss(this._swingsLeft === 1 ? 'Missed! Last swing...' : 'Missed!');
+      this._dartTimer?.remove();
+      this._dartTween?.stop();
+      this._scheduleDart(true);
     }
   }
+
+  _flashMiss(msg) {
+    this._missText.setText(msg).setAlpha(1);
+    this.tweens.add({ targets: this._missText, alpha: 0, duration: 900, delay: 400 });
+  }
+
+  _updateSwingsText() {
+    const dots = '●'.repeat(this._swingsLeft) + '○'.repeat(this._totalSwings() - this._swingsLeft);
+    this._swingsText.setText(`SWINGS ${dots}`);
+    this._swingsText.setColor(this._swingsLeft > 1 ? '#88ff88' : '#ff6b6b');
+  }
+
+  _stopMinigame() {
+    this._gameOver = true;
+    this._dartTimer?.remove();
+    this._dartTween?.stop();
+    this.input.off('pointermove', this._onPointerMove, this);
+    this._arenaHit?.disableInteractive();
+    this._netCursor?.setVisible(false);
+  }
+
+  // ── Phase 3: result ─────────────────────────────────────────────────────────
+
+  _onCaught() {
+    this._stopMinigame();
+    this._subtitle.setText('');
+    this._missText.setText('');
+
+    // Flash the bug, pull it to center, then show keep options
+    this.tweens.add({
+      targets: this._bug, alpha: 0.15, yoyo: true, repeat: 2, duration: 90,
+      onComplete: () => {
+        this.tweens.add({
+          targets: this._bug,
+          x: this.scale.width / 2, y: 200, scaleX: 0.7, scaleY: 0.7,
+          duration: 380, ease: 'Back.easeOut',
+          onComplete: () => this._showKeepOptions(),
+        });
+      },
+    });
+  }
+
+  _showKeepOptions() {
+    const { width, height } = this.scale;
+    const creature = this._capturable;
+
+    this.add.text(width / 2, 92, `Caught ${creature.name}!`, {
+      fontSize: '26px', color: '#a8ff78', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(10);
+
+    const handFull = (GameState.selectedDeck || []).length >= 5;
+
+    if (handFull) {
+      this.add.text(width / 2 - 110, height - 130, '[ HAND ]', {
+        fontSize: '20px', color: '#333344', fontFamily: 'monospace',
+        backgroundColor: '#0d0d1a', padding: { x: 14, y: 8 },
+      }).setOrigin(0.5);
+      this.add.text(width / 2 - 110, height - 100, 'Hand full (5/5)', {
+        fontSize: '10px', color: '#443333', fontFamily: 'monospace',
+      }).setOrigin(0.5);
+    } else {
+      this._makeButton(width / 2 - 110, height - 130, 'HAND', '#a8ff78', () => {
+        GameState.addToHand(creature);
+        this._completeCapture();
+      });
+    }
+
+    this._makeButton(width / 2 + 110, height - 130, 'FARM', '#66aaff', () => {
+      GameState.addToFarm(creature);
+      this._completeCapture();
+    });
+
+    this.add.text(width / 2, height - 88,
+      handFull
+        ? 'Hand is full — must send to FARM'
+        : 'HAND adds to active run   |   FARM stores permanently',
+      { fontSize: '12px', color: handFull ? '#884444' : '#555566', fontFamily: 'monospace' }
+    ).setOrigin(0.5);
+  }
+
+  _onEscaped() {
+    this._stopMinigame();
+    this._subtitle.setText('');
+    const { width, height } = this.scale;
+
+    // Bug bolts off the edge of the arena
+    const exitX = this._bug.x < width / 2 ? -120 : width + 120;
+    this._bug.scaleX = exitX < this._bug.x ? -1 : 1;
+    this.tweens.add({
+      targets: this._bug, x: exitX, duration: 420, ease: 'Quad.easeIn',
+      onComplete: () => destroyBugContainer(this._bug),
+    });
+
+    this.add.text(width / 2, height / 2 - 44, 'It got away!', {
+      fontSize: '30px', color: '#ff6b6b', fontFamily: 'monospace', fontStyle: 'bold',
+    }).setOrigin(0.5).setDepth(10);
+
+    this.add.text(width / 2, height / 2 - 8, `${this._capturable.name} slipped through your net.`, {
+      fontSize: '13px', color: '#888888', fontFamily: 'monospace',
+    }).setOrigin(0.5).setDepth(10);
+
+    this._makeButton(width / 2, height / 2 + 56, 'CONTINUE', '#ffffff', () => {
+      this._completeCapture();
+    });
+  }
+
+  // ── Shared ──────────────────────────────────────────────────────────────────
 
   _completeCapture() {
     if (this._returnToMap) {
@@ -128,7 +358,7 @@ export default class CaptureScene extends Phaser.Scene {
     const btn = this.add.text(x, y, `[ ${label} ]`, {
       fontSize: '20px', color, fontFamily: 'monospace',
       backgroundColor: '#141428', padding: { x: 14, y: 8 },
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    }).setOrigin(0.5).setDepth(10).setInteractive({ useHandCursor: true });
 
     btn.on('pointerover', () => btn.setScale(1.06));
     btn.on('pointerout',  () => btn.setScale(1));

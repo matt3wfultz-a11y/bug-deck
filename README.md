@@ -17,7 +17,7 @@ Then open http://localhost:3456 in a browser. Phaser is vendored in `vendor/`, s
 1. **Build your deck** — pick up to 5 bugs from the three archetypes (or from your farm) and up to 3 items.
 2. **Battle map** — each round, choose a node: **Fight**, **Shop**, or **Breeding**.
 3. **Fight** — queued simultaneous combat. Each turn you spend stamina to queue actions (**ATK**, **DEF**, **SPECIAL** for 2, **ITEM**, **SWAP**), then hit **END** and both sides resolve slot by slot. Flying bugs get 4 stamina; Ground and Water get 3.
-4. **Capture** — after every victory you may catch one of the defeated enemies: add it to your **hand** (joins the current run) or send it to the **farm** (kept forever). Wins also pay out gold.
+4. **Capture** — after every victory one of the defeated enemies is weakened and catchable. Swing your net (click) at the bug as it darts around the arena — faster bugs (higher SPD) are harder to pin down. You get 3 swings, +1 per Jar owned (max +2). Catch it and add it to your **hand** (joins the current run) or send it to the **farm** (kept forever) — or miss every swing and watch it escape. Wins also pay out gold.
 5. **Push or leave** — enemies scale +20% per round. Leave safely to bank your surviving bugs, or keep fighting. Bugs that faint are gone for good.
 
 ### Archetype triangle
